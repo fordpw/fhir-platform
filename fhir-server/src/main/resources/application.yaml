@@ -1,0 +1,17 @@
+server:
+  port: 8080
+
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/fhirdb
+
+app:
+  jwt:
+    secret: YTJiM2M0ZDVlNmY3ZzhoOWkwajFrMmwzbTRuNW82cDdxOHI5czB0MXUydjN3NHg1eTZ6
+    expiration: 86400000
+  synthea:
+    jar-path: ./synthea-with-dependencies.jar
+    output-directory: ./output/fhir
+  cors:
+    allowed-origins: http://localhost:5173
