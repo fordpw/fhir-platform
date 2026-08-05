@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: fhir-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  fhir-server:
+    build:
+      context: ./fhir-server
+      dockerfile: Dockerfile
+    container_name: fhir-server
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/fhirdb
+      JWT_SECRET: change-this-to-a-secure-random-string-in-production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/fhir/metadata"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  fhir-admin-ui:
+    build:
+      context: ./fhir-admin-ui
+      dockerfile: Dockerfile
+    container_name: fhir-admin-ui
+    ports:
+      - "5173:80"
+    depends_on:
+      - fhir-server
+
+volumes:
+  mongo-data:

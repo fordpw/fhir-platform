@@ -1,0 +1,494 @@
+# FHIR R4 Platform — Startup & Feature Guide
+
+A complete guide for starting up and using all features of the FHIR R4 Platform.
+
+---
+
+## Table of Contents
+
+1. [Prerequisites](#1-prerequisites)
+2. [Option A — Local Development (Recommended)](#2-option-a--local-development-recommended)
+3. [Option B — Docker Compose](#3-option-b--docker-compose)
+4. [Synthea Setup (Synthetic Data Generation)](#4-synthea-setup-synthetic-data-generation)
+5. [Logging In](#5-logging-in)
+6. [Admin UI Features](#6-admin-ui-features)
+7. [FHIR REST API Reference](#7-fhir-rest-api-reference)
+8. [Admin API Reference](#8-admin-api-reference)
+9. [User Roles & Permissions](#9-user-roles--permissions)
+10. [Configuration Reference](#10-configuration-reference)
+11. [Troubleshooting](#11-troubleshooting)
+
+---
+
+## 1. Prerequisites
+
+Ensure the following are installed before starting:
+
+| Tool | Minimum Version | Notes |
+|---|---|---|
+| Java JDK | 17+ | JDK required, not just JRE |
+| Maven | 3.9+ | For building the backend |
+| Node.js | 18+ | Includes npm |
+| MongoDB | 7+ | Local install or via Docker |
+| Docker & Docker Compose | Any recent | Optional — for containerized setup |
+
+Verify your versions:
+
+```powershell
+java -version
+mvn -version
+node -v
+npm -v
+docker -v
+```
+
+> **Verified local note:** Maven is installed at `C:\Users\paulw\tools\apache-maven-3.9.6` but may not be in the system PATH. If `mvn` is not recognized, use `C:\Users\paulw\tools\apache-maven-3.9.6\bin\mvn.cmd` in place of `mvn`.
+
+---
+
+## 2. Option A — Local Development (Recommended)
+
+### Step 1: Start MongoDB
+
+**Option 1 — If Docker is installed:**
+
+```powershell
+docker run -d --name fhir-mongodb -p 27017:27017 mongo:7
+```
+**Option 2 — If Docker is unavailable, install MongoDB locally with winget:**
+
+```powershell
+winget install MongoDB.Server --accept-package-agreements --accept-source-agreements
+Start-Service -Name "MongoDB"
+```
+
+**Option 3 — Start an already-installed local MongoDB service:**
+
+```powershell
+Start-Service -Name "MongoDB"
+```
+
+Verify MongoDB is running:
+
+```powershell
+Get-Service -Name "MongoDB"
+netstat -ano | Select-String ":27017"
+```
+
+### Step 2: Start the Backend (FHIR Server)
+
+```powershell
+cd C:\Users\paulw\fhir-platform\fhir-server
+mvn spring-boot:run
+# If mvn is not in PATH:
+# C:\Users\paulw\tools\apache-maven-3.9.6\bin\mvn.cmd spring-boot:run
+```
+
+The server takes roughly 20–30 seconds to start. Watch the console for:
+
+```
+Started FhirServerApplication in X.XXX seconds
+```
+
+**Backend is available at:**
+
+| Endpoint | URL |
+|---|---|
+| FHIR Base | http://localhost:8080/fhir/ |
+| CapabilityStatement | http://localhost:8080/fhir/metadata |
+| Auth API | http://localhost:8080/api/auth/ |
+| Admin API | http://localhost:8080/api/admin/ |
+
+> A default **admin** user (`admin` / `admin`) is automatically created on first startup.
+
+### Step 3: Start the Frontend (Admin UI)
+
+Open a second terminal:
+
+```powershell
+cd C:\Users\paulw\fhir-platform\fhir-admin-ui
+npm install      # first time only
+npm run dev
+```
+
+**Admin UI is available at: http://localhost:5173**
+
+---
+
+## 3. Option B — Docker Compose
+
+Runs MongoDB, backend, and frontend all together in containers.
+
+```powershell
+cd C:\Users\paulw\fhir-platform
+docker compose up --build
+```
+
+- First build will take several minutes (Maven downloads dependencies, npm builds the UI).
+- On subsequent runs, omit `--build` to skip rebuilding: `docker compose up`
+
+**Access points are the same:**
+- Admin UI: http://localhost:5173
+- FHIR Server: http://localhost:8080
+
+To stop all services:
+
+```powershell
+docker compose down
+```
+
+To stop and remove all data (including MongoDB volume):
+
+```powershell
+docker compose down -v
+```
+
+---
+
+## 4. Synthea Setup (Synthetic Data Generation)
+
+Synthea generates realistic synthetic patient records in FHIR R4 format. This is an **optional** feature but required for generating test data.
+
+### Step 1: Download the Synthea JAR
+
+1. Go to https://github.com/synthetichealth/synthea/releases
+2. Download `synthea-with-dependencies.jar` from the latest release.
+
+### Step 2: Place the JAR
+
+Place the file in the `fhir-server` directory:
+
+```
+fhir-platform\
+└── fhir-server\
+    └── synthea-with-dependencies.jar   ← place it here
+```
+
+This matches the path configured in `application.yaml`:
+
+```yaml
+app:
+  synthea:
+    jar-path: ./synthea-with-dependencies.jar
+    output-directory: ./output/fhir
+```
+
+### Step 3: Verify Java is in PATH
+
+Synthea is invoked as a subprocess using `java -jar`. Confirm:
+
+```powershell
+java -version
+```
+
+### Step 4: Generate Data
+
+You can trigger generation via the Admin UI (see [Section 6](#6-admin-ui-features)) or directly via the API (see [Section 8](#8-admin-api-reference)).
+
+Generated FHIR bundles are automatically imported into MongoDB after generation completes.
+
+---
+
+## 5. Logging In
+
+### Admin UI
+
+1. Open http://localhost:5173
+2. Enter credentials:
+   - **Username:** `admin`
+   - **Password:** `admin`
+3. Click Login.
+
+### API Login (get a JWT token)
+
+```powershell
+$response = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body '{"username":"admin","password":"admin"}'
+
+$token = $response.token
+```
+
+The token expires after **24 hours**. Use it in the `Authorization` header for protected endpoints:
+
+```
+Authorization: Bearer <token>
+```
+
+---
+
+## 6. Admin UI Features
+
+### Dashboard
+
+Displays a live count of all FHIR resources currently stored in MongoDB, broken down by resource type (Patient, Encounter, Condition, etc.).
+
+### Patient Browser
+
+- Search patients by name, ID, or other attributes.
+- Click a patient to view full FHIR resource details.
+- Supports pagination for large datasets.
+
+### Resource Explorer
+
+- Browse any of the 15 supported FHIR resource types.
+- Perform CRUD operations (Create, Read, Update, Delete) on resources.
+- View raw FHIR JSON.
+
+**Supported resource types:**
+Patient, Practitioner, Organization, Encounter, Condition, Observation, MedicationRequest, AllergyIntolerance, Immunization, Procedure, DiagnosticReport, CarePlan, Claim, Coverage, ExplanationOfBenefit
+
+### Synthea Data Generator
+
+- Set **Population Size** (number of synthetic patients to generate).
+- Set **State** (e.g., `Massachusetts`).
+- Set **City** (optional, e.g., `Boston`).
+- Click **Generate** — the job runs asynchronously in the background.
+- Monitor job status (PENDING → RUNNING → COMPLETED or FAILED).
+- On completion, all FHIR bundles are automatically imported into MongoDB.
+
+> Requires the Synthea JAR to be set up (see [Section 4](#4-synthea-setup-synthetic-data-generation)).
+
+### User Management (ADMIN only)
+
+- View all registered users.
+- Create new users with a role: `ADMIN`, `PRACTITIONER`, or `READONLY`.
+- Enable or disable user accounts.
+- Delete users.
+
+### Settings
+
+- View the server's FHIR CapabilityStatement (`/fhir/metadata`).
+- Review current server configuration.
+
+---
+
+## 7. FHIR REST API Reference
+
+All FHIR endpoints follow the standard FHIR R4 REST pattern. No authentication is required for read operations by default (configurable).
+
+### Base URL
+
+```
+http://localhost:8080/fhir/
+```
+
+### CapabilityStatement
+
+```powershell
+Invoke-RestMethod http://localhost:8080/fhir/metadata
+```
+
+### CRUD Operations (applies to all 15 resource types)
+
+Replace `{ResourceType}` with: `Patient`, `Encounter`, `Condition`, etc.
+
+| Operation | Method | URL |
+|---|---|---|
+| Search/list | GET | `/fhir/{ResourceType}` |
+| Read by ID | GET | `/fhir/{ResourceType}/{id}` |
+| Create | POST | `/fhir/{ResourceType}` |
+| Update | PUT | `/fhir/{ResourceType}/{id}` |
+| Delete | DELETE | `/fhir/{ResourceType}/{id}` |
+
+### Example: Search Patients by Name
+
+```powershell
+Invoke-RestMethod "http://localhost:8080/fhir/Patient?name=Smith"
+```
+
+### Example: Get a Specific Patient
+
+```powershell
+Invoke-RestMethod "http://localhost:8080/fhir/Patient/some-patient-id"
+```
+
+### Example: Create a Patient (POST)
+
+```powershell
+$body = @{
+  resourceType = "Patient"
+  name = @(@{ family = "Doe"; given = @("John") })
+  gender = "male"
+  birthDate = "1985-06-15"
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod -Uri "http://localhost:8080/fhir/Patient" `
+  -Method POST `
+  -ContentType "application/fhir+json" `
+  -Body $body
+```
+
+---
+
+## 8. Admin API Reference
+
+All Admin API endpoints require a valid JWT token in the `Authorization` header.
+
+### Authentication
+
+#### Login
+
+```powershell
+POST /api/auth/login
+Body: { "username": "admin", "password": "admin" }
+```
+
+Returns: `{ "token": "...", "username": "admin", "role": "ADMIN" }`
+
+#### Register New User
+
+```powershell
+POST /api/auth/register
+Body: { "username": "newuser", "password": "securepass", "role": "PRACTITIONER" }
+```
+
+Roles: `ADMIN`, `PRACTITIONER`, `READONLY`
+
+### Resource Stats
+
+```powershell
+GET /api/admin/stats
+Authorization: Bearer <token>
+```
+
+Returns counts for all 15 FHIR resource types plus a total.
+
+### User Management
+
+```powershell
+# List all users
+GET /api/admin/users
+
+# Get a specific user
+GET /api/admin/users/{id}
+
+# Update a user (role, enabled status)
+PUT /api/admin/users/{id}
+Body: { "role": "READONLY", "enabled": false }
+
+# Delete a user
+DELETE /api/admin/users/{id}
+```
+
+### Synthea Data Generation
+
+```powershell
+# Trigger generation (returns a jobId immediately)
+POST /api/admin/synthea/generate
+Body: { "populationSize": 50, "state": "Massachusetts", "city": "Boston" }
+
+# List all past jobs
+GET /api/admin/synthea/jobs
+
+# Check the status of a specific job
+GET /api/admin/synthea/jobs/{jobId}
+```
+
+Job statuses: `PENDING` → `RUNNING` → `COMPLETED` or `FAILED`
+
+### Full PowerShell Example
+
+```powershell
+# 1. Login and get token
+$login = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" `
+  -Method POST -ContentType "application/json" `
+  -Body '{"username":"admin","password":"admin"}'
+$token = $login.token
+$headers = @{ Authorization = "Bearer $token" }
+
+# 2. Get resource stats
+Invoke-RestMethod -Uri "http://localhost:8080/api/admin/stats" -Headers $headers
+
+# 3. Trigger Synthea generation
+$body = '{"populationSize":10,"state":"Massachusetts","city":"Boston"}'
+$job = Invoke-RestMethod -Uri "http://localhost:8080/api/admin/synthea/generate" `
+  -Method POST -ContentType "application/json" -Headers $headers -Body $body
+
+# 4. Check job status
+Invoke-RestMethod -Uri "http://localhost:8080/api/admin/synthea/jobs/$($job.jobId)" `
+  -Headers $headers
+```
+
+---
+
+## 9. User Roles & Permissions
+
+| Role | Description |
+|---|---|
+| `ADMIN` | Full access — user management, Synthea, FHIR CRUD, stats |
+| `PRACTITIONER` | FHIR resource access + read stats; no user management |
+| `READONLY` | Read-only access to FHIR resources and stats |
+
+Roles are enforced via JWT claims and Spring Security on the backend.
+
+---
+
+## 10. Configuration Reference
+
+Key settings in `fhir-server/src/main/resources/application.yaml`:
+
+```yaml
+server:
+  port: 8080
+
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/fhirdb
+
+app:
+  jwt:
+    secret: <base64-encoded-secret>
+    expiration: 86400000          # 24 hours in milliseconds
+
+  synthea:
+    jar-path: ./synthea-with-dependencies.jar
+    output-directory: ./output/fhir
+
+  cors:
+    allowed-origins: http://localhost:5173
+```
+
+### Environment Variable Overrides (Docker)
+
+When running via Docker Compose, these can be overridden:
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `SPRING_DATA_MONGODB_URI` | `mongodb://mongodb:27017/fhirdb` | MongoDB connection string |
+| `JWT_SECRET` | (from yaml) | JWT signing secret — change in production! |
+
+---
+
+## 11. Troubleshooting
+
+### Backend won't start
+
+- **MongoDB not reachable:** Ensure MongoDB is running on port 27017. Check with `docker ps` or `mongosh`.
+- **Port 8080 in use:** Another service may be using 8080. Kill it or change `server.port` in `application.yaml`.
+- **Java version:** Run `java -version` — must be 17 or higher.
+
+### Frontend won't connect to backend
+
+- Ensure the backend is running and accessible at http://localhost:8080.
+- Check that `fhir-admin-ui/vite.config.ts` proxies `/api` and `/fhir` to the correct backend URL.
+- CORS is configured to allow `http://localhost:5173` by default.
+
+### Synthea job fails
+
+- Verify `synthea-with-dependencies.jar` is in `fhir-server/` (not a subdirectory).
+- Confirm `java` is on the system PATH (the server invokes it as a subprocess).
+- Check the server console logs for `[Synthea]` prefixed lines showing Synthea's output.
+- Ensure the `./output/fhir` directory is writable by the process.
+
+### "Invalid username or password" on login
+
+- The default credentials are `admin` / `admin` (case-sensitive).
+- If you've changed or deleted the admin user, restart the server — it recreates the default admin on first start only if no users exist.
+
+### Docker Compose backend is slow to start
+
+- The backend has a `start_period: 60s` health check. It may take up to 60 seconds after the container appears "up" for the FHIR endpoint to be ready.
+- Watch logs with: `docker compose logs -f fhir-server`
