@@ -16,7 +16,8 @@ services:
 
   fhir-server:
     container_name: fhir-server-staging
-    ports:
+    # Override base ports entirely — prevents inheriting 8080:8080 from docker-compose.yml
+    ports: !override
       - "8081:8080"
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/fhirdb_staging
@@ -25,7 +26,7 @@ services:
 
   fhir-admin-ui:
     container_name: fhir-admin-ui-staging
-    ports:
+    ports: !override
       - "5174:80"
 
 volumes:
