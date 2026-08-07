@@ -182,16 +182,26 @@ Key settings in `fhir-server/src/main/resources/application.yaml`:
 | `spring.data.mongodb.uri` | `mongodb://localhost:27017/fhirdb` | MongoDB connection |
 | `jwt.secret` | (generated) | JWT signing secret |
 | `jwt.expiration` | `86400000` (24h) | Token expiration in ms |
-| `synthea.jar-path` | `lib/synthea-with-dependencies.jar` | Path to Synthea JAR |
-| `synthea.output-dir` | `synthea-output` | Synthea output directory |
+| `app.synthea.jar-path` | `./synthea-with-dependencies.jar` | Path to Synthea JAR (env: `SYNTHEA_JAR_PATH`) |
+| `app.synthea.output-directory` | `./output` | Base output dir; each job writes to `<base>/<jobId>/fhir` (env: `SYNTHEA_OUTPUT_DIR`) |
 
 ## Synthea Setup
 
-To use Synthea data generation:
+**Docker Compose:** nothing to do. The `fhir-server` image downloads the Synthea
+JAR at build time (pinned via the `SYNTHEA_VERSION` build arg in
+`fhir-server/Dockerfile`) and points `SYNTHEA_JAR_PATH` at it.
 
-1. Download the Synthea JAR from [GitHub Releases](https://github.com/synthetichealth/synthea/releases)
-2. Place `synthea-with-dependencies.jar` in `fhir-server/lib/`
-3. Use the admin UI or API to trigger generation
+**Running the backend directly** (`mvn spring-boot:run`):
+
+1. Download the JAR into `fhir-server/`:
+   ```powershell
+   .\scripts\fetch-synthea.ps1
+   ```
+   Or download `synthea-with-dependencies.jar` manually from
+   [GitHub Releases](https://github.com/synthetichealth/synthea/releases) and place
+   it in `fhir-server/`.
+2. Ensure `java` is on your PATH — Synthea runs as a subprocess.
+3. Use the admin UI or API to trigger generation.
 
 ## License
 

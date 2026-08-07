@@ -11,7 +11,9 @@ app:
     secret: YTJiM2M0ZDVlNmY3ZzhoOWkwajFrMmwzbTRuNW82cDdxOHI5czB0MXUydjN3NHg1eTZ6
     expiration: 86400000
   synthea:
-    jar-path: ./synthea-with-dependencies.jar
-    output-directory: ./output/fhir
+    jar-path: ${SYNTHEA_JAR_PATH:./synthea-with-dependencies.jar}
+    # Base output directory. Each job exports into its own subdirectory, so
+    # Synthea writes FHIR bundles to <output-directory>/<jobId>/fhir.
+    output-directory: ${SYNTHEA_OUTPUT_DIR:./output}
   cors:
     allowed-origins: http://localhost:5173

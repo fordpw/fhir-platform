@@ -22,6 +22,9 @@ services:
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/fhirdb
       JWT_SECRET: change-this-to-a-secure-random-string-in-production
+    volumes:
+      # Synthea writes generated bundles here (one subdirectory per job)
+      - synthea-output:/app/output
     depends_on:
       mongodb:
         condition: service_healthy
@@ -44,3 +47,4 @@ services:
 
 volumes:
   mongo-data:
+  synthea-output:

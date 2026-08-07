@@ -149,31 +149,43 @@ docker compose down -v
 
 Synthea generates realistic synthetic patient records in FHIR R4 format. This is an **optional** feature but required for generating test data.
 
-### Step 1: Download the Synthea JAR
+### Option B (Docker Compose): nothing to do
 
-1. Go to https://github.com/synthetichealth/synthea/releases
-2. Download `synthea-with-dependencies.jar` from the latest release.
+The `fhir-server` image downloads the Synthea JAR at build time into
+`/opt/synthea/` and sets `SYNTHEA_JAR_PATH` accordingly, so generation works out
+of the box after `docker compose up --build`.
 
-### Step 2: Place the JAR
+The version is pinned in `fhir-server/Dockerfile`. To use a different release:
 
-Place the file in the `fhir-server` directory:
-
-```
-fhir-platform\
-└── fhir-server\
-    └── synthea-with-dependencies.jar   ← place it here
+```powershell
+docker compose build --build-arg SYNTHEA_VERSION=v3.4.0 fhir-server
 ```
 
-This matches the path configured in `application.yaml`:
+Generated bundles are written to the `synthea-output` volume mounted at `/app/output`.
+
+### Option A (running the backend directly): download the JAR
+
+#### Step 1: Download
+
+```powershell
+cd C:\Users\paulw\fhir-platform
+.\scripts\fetch-synthea.ps1
+```
+
+This places the file at `fhir-server\synthea-with-dependencies.jar` (~200 MB).
+You can also download it manually from
+https://github.com/synthetichealth/synthea/releases into the same location.
+
+That location matches the default configured in `application.yaml`:
 
 ```yaml
 app:
   synthea:
-    jar-path: ./synthea-with-dependencies.jar
-    output-directory: ./output/fhir
+    jar-path: ${SYNTHEA_JAR_PATH:./synthea-with-dependencies.jar}
+    output-directory: ${SYNTHEA_OUTPUT_DIR:./output}
 ```
 
-### Step 3: Verify Java is in PATH
+#### Step 2: Verify Java is in PATH
 
 Synthea is invoked as a subprocess using `java -jar`. Confirm:
 
@@ -181,11 +193,12 @@ Synthea is invoked as a subprocess using `java -jar`. Confirm:
 java -version
 ```
 
-### Step 4: Generate Data
+### Generate Data
 
 You can trigger generation via the Admin UI (see [Section 6](#6-admin-ui-features)) or directly via the API (see [Section 8](#8-admin-api-reference)).
 
-Generated FHIR bundles are automatically imported into MongoDB after generation completes.
+Each job exports into its own directory (`<output-directory>/<jobId>/fhir`), and
+those FHIR bundles are automatically imported into MongoDB after generation completes.
 
 ---
 
@@ -444,8 +457,8 @@ app:
     expiration: 86400000          # 24 hours in milliseconds
 
   synthea:
-    jar-path: ./synthea-with-dependencies.jar
-    output-directory: ./output/fhir
+    jar-path: ${SYNTHEA_JAR_PATH:./synthea-with-dependencies.jar}
+    output-directory: ${SYNTHEA_OUTPUT_DIR:./output}
 
   cors:
     allowed-origins: http://localhost:5173
@@ -459,6 +472,8 @@ When running via Docker Compose, these can be overridden:
 |---|---|---|
 | `SPRING_DATA_MONGODB_URI` | `mongodb://mongodb:27017/fhirdb` | MongoDB connection string |
 | `JWT_SECRET` | (from yaml) | JWT signing secret — change in production! |
+| `SYNTHEA_JAR_PATH` | `/opt/synthea/synthea-with-dependencies.jar` (set in the image) | Path to the Synthea JAR |
+| `SYNTHEA_OUTPUT_DIR` | `/app/output` (set in the image) | Base directory for generated bundles |
 
 ---
 
@@ -478,10 +493,15 @@ When running via Docker Compose, these can be overridden:
 
 ### Synthea job fails
 
-- Verify `synthea-with-dependencies.jar` is in `fhir-server/` (not a subdirectory).
+- Read the job's `errorMessage` first (shown in the Admin UI job history, or via
+  `GET /api/admin/synthea/jobs/{jobId}`). It includes the tail of Synthea's own
+  output, which usually names the cause directly.
+- **"Synthea JAR not found at ..."** — the JAR is missing at the configured path.
+  Under Docker, rebuild the image (`docker compose build fhir-server`) so the JAR
+  is downloaded. Running locally, run `.\scripts\fetch-synthea.ps1`.
 - Confirm `java` is on the system PATH (the server invokes it as a subprocess).
 - Check the server console logs for `[Synthea]` prefixed lines showing Synthea's output.
-- Ensure the `./output/fhir` directory is writable by the process.
+- Ensure the output directory is writable by the process.
 
 ### "Invalid username or password" on login
 
