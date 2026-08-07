@@ -77,7 +77,14 @@ This starts MongoDB, the backend, and the frontend. Access the UI at **http://lo
 ```
 fhir-platform/
 ├── docker-compose.yml
+├── docker-compose.staging.yml
 ├── README.md
+├── STARTUP_GUIDE.md
+├── scripts/
+│   └── deploy-staging.ps1
+├── .github/workflows/
+│   ├── ci.yml                      # Build & test on every PR
+│   └── deploy-staging.yml          # Auto-deploy to staging on merge to master
 ├── fhir-server/                    # Java Spring Boot backend
 │   ├── pom.xml
 │   ├── Dockerfile
@@ -119,6 +126,25 @@ fhir-platform/
 Patient, Practitioner, Organization, Encounter, Condition, Observation, MedicationRequest, AllergyIntolerance, Immunization, Procedure, DiagnosticReport, CarePlan, Claim, Coverage, ExplanationOfBenefit
 
 Each supports CRUD operations and resource-specific search parameters.
+
+## CI/CD
+
+| Workflow | Trigger | Jobs |
+|---|---|---|
+| `ci.yml` | Every PR + push to `master` | Backend (`mvn verify`), Frontend (`npm run build`), Docker build |
+| `deploy-staging.yml` | Every push to `master` | Deploy staging stack via self-hosted runner, verify endpoints |
+
+## Staging Environment
+
+Runs on separate ports alongside the dev stack:
+
+| Service | Dev | Staging |
+|---|---|---|
+| Admin UI | http://localhost:5173 | http://localhost:5174 |
+| FHIR API | http://localhost:8080 | http://localhost:8081 |
+| MongoDB | :27017 | :27018 |
+
+Deploy manually: `pwsh scripts/deploy-staging.ps1`
 
 ## Key Features
 
@@ -192,6 +218,10 @@ To use Synthea data generation:
 1. Download the Synthea JAR from [GitHub Releases](https://github.com/synthetichealth/synthea/releases)
 2. Place `synthea-with-dependencies.jar` in `fhir-server/lib/`
 3. Use the admin UI or API to trigger generation
+
+## Documentation
+
+See [STARTUP_GUIDE.md](STARTUP_GUIDE.md) for detailed setup, API reference, CI/CD pipeline docs, and troubleshooting.
 
 ## License
 
