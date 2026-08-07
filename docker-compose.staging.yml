@@ -1,0 +1,32 @@
+# Staging environment override
+# Usage: docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --build
+#
+# Runs on separate ports from dev so both stacks can coexist:
+#   MongoDB  : 27018
+#   Backend  : 8081
+#   Frontend : 5174
+
+services:
+  mongodb:
+    container_name: fhir-mongodb-staging
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-staging-data:/data/db
+
+  fhir-server:
+    container_name: fhir-server-staging
+    ports:
+      - "8081:8080"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27018/fhirdb_staging
+      JWT_SECRET: staging-jwt-secret-change-before-production
+      APP_CORS_ALLOWED_ORIGINS: http://localhost:5174
+
+  fhir-admin-ui:
+    container_name: fhir-admin-ui-staging
+    ports:
+      - "5174:80"
+
+volumes:
+  mongo-staging-data:
