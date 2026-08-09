@@ -1,6 +1,7 @@
 package com.fhirplatform.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -13,6 +14,17 @@ import java.util.Date;
 
 @Component
 public class JwtUtil {
+
+    /**
+     * Outcome of inspecting a bearer token. Callers need to distinguish an expired
+     * token (the user had a valid session that lapsed) from a malformed or
+     * tampered one, so the client can show an accurate message.
+     */
+    public enum TokenStatus {
+        VALID,
+        EXPIRED,
+        INVALID
+    }
 
     private final SecretKey secretKey;
     private final long expiration;
@@ -46,11 +58,21 @@ public class JwtUtil {
     }
 
     public boolean isTokenValid(String token) {
+        return checkToken(token) == TokenStatus.VALID;
+    }
+
+    /**
+     * Inspects a token without throwing. The parser already rejects expired tokens,
+     * so {@link ExpiredJwtException} is caught separately to report expiry distinctly.
+     */
+    public TokenStatus checkToken(String token) {
         try {
-            Claims claims = parseClaims(token);
-            return !claims.getExpiration().before(new Date());
+            parseClaims(token);
+            return TokenStatus.VALID;
+        } catch (ExpiredJwtException e) {
+            return TokenStatus.EXPIRED;
         } catch (JwtException | IllegalArgumentException e) {
-            return false;
+            return TokenStatus.INVALID;
         }
     }
 

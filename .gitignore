@@ -12,3 +12,6 @@ target/
 # Synthea JAR (downloaded separately, ~200MB) and its generated output
 synthea-with-dependencies.jar
 output/
+
+# Scratch files
+*.tmp
