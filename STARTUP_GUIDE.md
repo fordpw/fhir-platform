@@ -471,9 +471,23 @@ When running via Docker Compose, these can be overridden:
 | Environment Variable | Default | Description |
 |---|---|---|
 | `SPRING_DATA_MONGODB_URI` | `mongodb://mongodb:27017/fhirdb` | MongoDB connection string |
-| `JWT_SECRET` | (from yaml) | JWT signing secret — change in production! |
+| `APP_JWT_SECRET` | (dev placeholder in yaml) | JWT signing secret — **must** be set to a unique random value in any shared environment |
+| `APP_JWT_EXPIRATION` | `86400000` (24h) | Token lifetime in milliseconds |
 | `SYNTHEA_JAR_PATH` | `/opt/synthea/synthea-with-dependencies.jar` (set in the image) | Path to the Synthea JAR |
 | `SYNTHEA_OUTPUT_DIR` | `/app/output` (set in the image) | Base directory for generated bundles |
+
+> **The variable is `APP_JWT_SECRET`, not `JWT_SECRET`.** The property is
+> `app.jwt.secret`; a bare `JWT_SECRET` binds to `jwt.secret`, which nothing
+> reads, so it is silently ignored and the committed default stays in force.
+> Earlier revisions of this guide documented `JWT_SECRET`, which meant dev and
+> staging both signed tokens with the same public key and tokens were
+> interchangeable between them.
+>
+> Generate one with:
+>
+> ```powershell
+> [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Max 256 }))
+> ```
 
 ---
 
