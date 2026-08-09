@@ -52,8 +52,19 @@ public class AuthController {
         return ResponseEntity.ok(new LoginResponse(token, user.getUsername(), user.getRole()));
     }
 
+    /**
+     * Admin-only (see SecurityConfig). This was previously reachable anonymously
+     * and honoured any role in the request body, allowing privilege escalation.
+     */
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
+        if (!AppUser.isValidRole(request.role())) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Invalid role: " + request.role(),
+                    "validRoles", AppUser.VALID_ROLES
+            ));
+        }
+
         if (userService.findByUsername(request.username()).isPresent()) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "Username already exists"));

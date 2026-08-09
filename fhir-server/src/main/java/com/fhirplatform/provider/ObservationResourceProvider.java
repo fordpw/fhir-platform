@@ -2,7 +2,10 @@ package com.fhirplatform.provider;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.annotation.OptionalParam;
+import ca.uhn.fhir.rest.annotation.Count;
+import ca.uhn.fhir.rest.annotation.Offset;
 import ca.uhn.fhir.rest.annotation.Search;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.param.DateParam;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import ca.uhn.fhir.rest.param.TokenParam;
@@ -33,11 +36,13 @@ public class ObservationResourceProvider extends BaseMongoResourceProvider<Obser
     }
 
     @Search
-    public List<Observation> searchObservations(
+    public IBundleProvider searchObservations(
             @OptionalParam(name = Observation.SP_PATIENT) ReferenceParam patient,
             @OptionalParam(name = Observation.SP_CODE) TokenParam code,
             @OptionalParam(name = Observation.SP_DATE) DateParam date,
-            @OptionalParam(name = Observation.SP_CATEGORY) TokenParam category) {
+            @OptionalParam(name = Observation.SP_CATEGORY) TokenParam category,
+            @Count Integer count,
+            @Offset Integer offset) {
 
         Query query = new Query();
 
@@ -54,9 +59,6 @@ public class ObservationResourceProvider extends BaseMongoResourceProvider<Obser
             query.addCriteria(Criteria.where("content.category.coding.code").is(category.getValue()));
         }
 
-        return repository.findByQuery(query, collectionName())
-                .stream()
-                .map(this::deserialize)
-                .collect(Collectors.toList());
+        return page(query, count, offset);
     }
 }

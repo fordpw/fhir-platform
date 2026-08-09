@@ -1,7 +1,16 @@
+/**
+ * Roles defined by the backend (AppUser.VALID_ROLES). There is no 'USER' role;
+ * the UI previously offered one, which created accounts with no privileges.
+ */
+export type UserRole = 'ADMIN' | 'PRACTITIONER' | 'READONLY'
+
+export const USER_ROLES: UserRole[] = ['ADMIN', 'PRACTITIONER', 'READONLY']
+
 export interface AppUser {
-  id: number
+  /** Mongo ObjectId string, not a number. */
+  id: string
   username: string
-  role: 'ADMIN' | 'USER'
+  role: UserRole
   enabled: boolean
   createdAt: string
 }
@@ -14,13 +23,13 @@ export interface LoginRequest {
 export interface LoginResponse {
   token: string
   username: string
-  role: 'ADMIN' | 'USER'
+  role: UserRole
 }
 
 export interface RegisterRequest {
   username: string
   password: string
-  role: 'ADMIN' | 'USER'
+  role: UserRole
 }
 
 export interface FhirResource {
@@ -96,6 +105,6 @@ export interface PaginatedResponse {
 
 export interface AuthState {
   username: string
-  role: 'ADMIN' | 'USER'
+  role: UserRole
   token: string
 }

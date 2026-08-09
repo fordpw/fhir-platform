@@ -2,7 +2,10 @@ package com.fhirplatform.provider;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.annotation.OptionalParam;
+import ca.uhn.fhir.rest.annotation.Count;
+import ca.uhn.fhir.rest.annotation.Offset;
 import ca.uhn.fhir.rest.annotation.Search;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import com.fhirplatform.repository.FhirResourceRepository;
 import org.hl7.fhir.r4.model.Coverage;
@@ -31,8 +34,10 @@ public class CoverageResourceProvider extends BaseMongoResourceProvider<Coverage
     }
 
     @Search
-    public List<Coverage> searchCoverages(
-            @OptionalParam(name = Coverage.SP_BENEFICIARY) ReferenceParam beneficiary) {
+    public IBundleProvider searchCoverages(
+            @OptionalParam(name = Coverage.SP_BENEFICIARY) ReferenceParam beneficiary,
+            @Count Integer count,
+            @Offset Integer offset) {
 
         Query query = new Query();
 
@@ -40,9 +45,6 @@ public class CoverageResourceProvider extends BaseMongoResourceProvider<Coverage
             query.addCriteria(Criteria.where("content.beneficiary.reference").regex("Patient/" + beneficiary.getIdPart()));
         }
 
-        return repository.findByQuery(query, collectionName())
-                .stream()
-                .map(this::deserialize)
-                .collect(Collectors.toList());
+        return page(query, count, offset);
     }
 }

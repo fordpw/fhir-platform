@@ -2,7 +2,10 @@ package com.fhirplatform.provider;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.annotation.OptionalParam;
+import ca.uhn.fhir.rest.annotation.Count;
+import ca.uhn.fhir.rest.annotation.Offset;
 import ca.uhn.fhir.rest.annotation.Search;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import ca.uhn.fhir.rest.param.TokenParam;
 import com.fhirplatform.repository.FhirResourceRepository;
@@ -32,9 +35,11 @@ public class DiagnosticReportResourceProvider extends BaseMongoResourceProvider<
     }
 
     @Search
-    public List<DiagnosticReport> searchDiagnosticReports(
+    public IBundleProvider searchDiagnosticReports(
             @OptionalParam(name = DiagnosticReport.SP_PATIENT) ReferenceParam patient,
-            @OptionalParam(name = DiagnosticReport.SP_CODE) TokenParam code) {
+            @OptionalParam(name = DiagnosticReport.SP_CODE) TokenParam code,
+            @Count Integer count,
+            @Offset Integer offset) {
 
         Query query = new Query();
 
@@ -45,9 +50,6 @@ public class DiagnosticReportResourceProvider extends BaseMongoResourceProvider<
             query.addCriteria(Criteria.where("content.code.coding.code").is(code.getValue()));
         }
 
-        return repository.findByQuery(query, collectionName())
-                .stream()
-                .map(this::deserialize)
-                .collect(Collectors.toList());
+        return page(query, count, offset);
     }
 }

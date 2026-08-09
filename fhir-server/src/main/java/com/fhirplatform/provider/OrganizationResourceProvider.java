@@ -2,7 +2,10 @@ package com.fhirplatform.provider;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.annotation.OptionalParam;
+import ca.uhn.fhir.rest.annotation.Count;
+import ca.uhn.fhir.rest.annotation.Offset;
 import ca.uhn.fhir.rest.annotation.Search;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.param.StringParam;
 import com.fhirplatform.repository.FhirResourceRepository;
 import org.hl7.fhir.r4.model.Organization;
@@ -31,8 +34,10 @@ public class OrganizationResourceProvider extends BaseMongoResourceProvider<Orga
     }
 
     @Search
-    public List<Organization> searchOrganizations(
-            @OptionalParam(name = Organization.SP_NAME) StringParam name) {
+    public IBundleProvider searchOrganizations(
+            @OptionalParam(name = Organization.SP_NAME) StringParam name,
+            @Count Integer count,
+            @Offset Integer offset) {
 
         Query query = new Query();
 
@@ -40,9 +45,6 @@ public class OrganizationResourceProvider extends BaseMongoResourceProvider<Orga
             query.addCriteria(Criteria.where("content.name").regex(name.getValue(), "i"));
         }
 
-        return repository.findByQuery(query, collectionName())
-                .stream()
-                .map(this::deserialize)
-                .collect(Collectors.toList());
+        return page(query, count, offset);
     }
 }

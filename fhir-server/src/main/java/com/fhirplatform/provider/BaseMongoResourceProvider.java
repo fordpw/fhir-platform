@@ -3,12 +3,15 @@ package com.fhirplatform.provider;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.annotation.*;
 import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.server.IResourceProvider;
+import ca.uhn.fhir.rest.server.SimpleBundleProvider;
 import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
 import com.fhirplatform.model.FhirResourceDocument;
 import com.fhirplatform.repository.FhirResourceRepository;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.r4.model.IdType;
+import org.springframework.data.mongodb.core.query.Query;
 
 import java.time.Instant;
 import java.util.List;
@@ -16,6 +19,12 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 public abstract class BaseMongoResourceProvider<T extends IBaseResource> implements IResourceProvider {
+
+    /** Page size used when the client does not supply _count. */
+    protected static final int DEFAULT_PAGE_SIZE = 20;
+
+    /** Upper bound on _count, so a client cannot request an entire collection. */
+    protected static final int MAX_PAGE_SIZE = 200;
 
     protected final FhirResourceRepository repository;
     protected final FhirContext fhirContext;
@@ -103,11 +112,33 @@ public abstract class BaseMongoResourceProvider<T extends IBaseResource> impleme
     }
 
     @Search
-    public List<T> searchAll() {
-        return repository.findAll(0, 100, collectionName())
+    public IBundleProvider searchAll(@Count Integer count, @Offset Integer offset) {
+        return page(new Query(), count, offset);
+    }
+
+    /**
+     * Applies paging in MongoDB and reports the full match count as the bundle total.
+     *
+     * <p>Searches previously returned a plain List capped at 100 rows, so
+     * Bundle.total reported the size of that capped page rather than the real
+     * number of matches, and _offset was ignored entirely, meaning every page
+     * rendered identical rows. Counting happens before skip/limit is applied.
+     */
+    protected IBundleProvider page(Query query, Integer count, Integer offset) {
+        int skip = offset != null && offset > 0 ? offset : 0;
+        int limit = count != null && count > 0 ? Math.min(count, MAX_PAGE_SIZE) : DEFAULT_PAGE_SIZE;
+
+        long total = repository.countByQuery(query, collectionName());
+
+        List<IBaseResource> slice = repository
+                .findByQuery(Query.of(query).skip(skip).limit(limit), collectionName())
                 .stream()
-                .map(this::deserialize)
+                .map(doc -> (IBaseResource) deserialize(doc))
                 .collect(Collectors.toList());
+
+        SimpleBundleProvider provider = new SimpleBundleProvider(slice);
+        provider.setSize((int) Math.min(total, Integer.MAX_VALUE));
+        return provider;
     }
 
     protected org.bson.Document serialize(T resource) {

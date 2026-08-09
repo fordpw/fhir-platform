@@ -40,6 +40,15 @@ public class FhirResourceRepository {
         return mongoTemplate.count(new Query(), collectionName);
     }
 
+    /**
+     * Counts documents matching a query, ignoring any skip/limit on it. Call this
+     * before applying paging so the total reflects the whole result set.
+     */
+    public long countByQuery(Query query, String collectionName) {
+        Query counting = Query.of(query).limit(0).skip(0);
+        return mongoTemplate.count(counting, FhirResourceDocument.class, collectionName);
+    }
+
     public List<FhirResourceDocument> findAll(int offset, int count, String collectionName) {
         Query query = new Query().skip(offset).limit(count);
         return mongoTemplate.find(query, FhirResourceDocument.class, collectionName);
