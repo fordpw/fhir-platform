@@ -83,7 +83,8 @@ export interface GenerateRequest {
 }
 
 export interface StatsResponse {
-  [resourceType: string]: number
+  resourceCounts: Record<string, number>
+  totalResources: number
 }
 
 export interface PatientSummary {
