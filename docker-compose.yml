@@ -21,7 +21,9 @@ services:
       - "8080:8080"
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/fhirdb
-      JWT_SECRET: change-this-to-a-secure-random-string-in-production
+      # Must be APP_JWT_SECRET: the property is app.jwt.secret, so a bare
+      # JWT_SECRET binds to jwt.secret and is silently ignored.
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-dev-only-secret-please-override-in-any-shared-environment}
     volumes:
       # Synthea writes generated bundles here (one subdirectory per job)
       - synthea-output:/app/output

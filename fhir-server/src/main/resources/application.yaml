@@ -8,8 +8,17 @@ spring:
 
 app:
   jwt:
-    secret: YTJiM2M0ZDVlNmY3ZzhoOWkwajFrMmwzbTRuNW82cDdxOHI5czB0MXUydjN3NHg1eTZ6
-    expiration: 86400000
+    # Override with the APP_JWT_SECRET environment variable. The placeholder is
+    # written out explicitly rather than relying on relaxed binding alone, so it
+    # is obvious which variable name actually takes effect -- docker-compose
+    # previously set JWT_SECRET, which binds to jwt.secret and is read by
+    # nothing, leaving every environment on the committed default below.
+    #
+    # The default is a development convenience only. Any deployment reachable
+    # beyond localhost must set APP_JWT_SECRET to a unique random value; this
+    # one is public in version control.
+    secret: ${APP_JWT_SECRET:YTJiM2M0ZDVlNmY3ZzhoOWkwajFrMmwzbTRuNW82cDdxOHI5czB0MXUydjN3NHg1eTZ6}
+    expiration: ${APP_JWT_EXPIRATION:86400000}
   synthea:
     jar-path: ${SYNTHEA_JAR_PATH:./synthea-with-dependencies.jar}
     # Base output directory. Each job exports into its own subdirectory, so
