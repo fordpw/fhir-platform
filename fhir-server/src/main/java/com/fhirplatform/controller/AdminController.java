@@ -1,5 +1,6 @@
 package com.fhirplatform.controller;
 
+import com.fhirplatform.dto.RegisterRequest;
 import com.fhirplatform.dto.StatsResponse;
 import com.fhirplatform.dto.UserResponse;
 import com.fhirplatform.dto.UserUpdateRequest;
@@ -7,6 +8,7 @@ import com.fhirplatform.entity.AppUser;
 import com.fhirplatform.model.FhirResourceDocument;
 import com.fhirplatform.repository.FhirResourceRepository;
 import com.fhirplatform.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -45,6 +47,31 @@ public class AdminController {
         return ResponseEntity.ok(users);
     }
 
+    /**
+     * Creates a user. The admin UI has always called this endpoint, but it did not
+     * exist, so user creation silently failed. Account creation is admin-only:
+     * public self-registration previously allowed anyone to request the ADMIN role.
+     */
+    @PostMapping("/users")
+    public ResponseEntity<?> createUser(@Valid @RequestBody RegisterRequest request) {
+        if (!AppUser.isValidRole(request.role())) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Invalid role: " + request.role(),
+                    "validRoles", AppUser.VALID_ROLES
+            ));
+        }
+
+        if (userService.findByUsername(request.username()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Username already exists"));
+        }
+
+        AppUser created = userService.createUser(
+                request.username(), request.password(), request.role());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(UserResponse.from(created));
+    }
+
     @GetMapping("/users/{id}")
     public ResponseEntity<?> getUser(@PathVariable String id) {
         return userService.findById(id)
@@ -54,6 +81,13 @@ public class AdminController {
 
     @PutMapping("/users/{id}")
     public ResponseEntity<?> updateUser(@PathVariable String id, @RequestBody UserUpdateRequest request) {
+        if (request.role() != null && !AppUser.isValidRole(request.role())) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Invalid role: " + request.role(),
+                    "validRoles", AppUser.VALID_ROLES
+            ));
+        }
+
         try {
             AppUser updated = userService.updateUser(id, request);
             return ResponseEntity.ok(UserResponse.from(updated));

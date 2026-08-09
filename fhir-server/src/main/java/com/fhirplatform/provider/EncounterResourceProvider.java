@@ -2,7 +2,10 @@ package com.fhirplatform.provider;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.annotation.OptionalParam;
+import ca.uhn.fhir.rest.annotation.Count;
+import ca.uhn.fhir.rest.annotation.Offset;
 import ca.uhn.fhir.rest.annotation.Search;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.param.DateParam;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import ca.uhn.fhir.rest.param.TokenParam;
@@ -33,10 +36,12 @@ public class EncounterResourceProvider extends BaseMongoResourceProvider<Encount
     }
 
     @Search
-    public List<Encounter> searchEncounters(
+    public IBundleProvider searchEncounters(
             @OptionalParam(name = Encounter.SP_PATIENT) ReferenceParam patient,
             @OptionalParam(name = Encounter.SP_DATE) DateParam date,
-            @OptionalParam(name = Encounter.SP_STATUS) TokenParam status) {
+            @OptionalParam(name = Encounter.SP_STATUS) TokenParam status,
+            @Count Integer count,
+            @Offset Integer offset) {
 
         Query query = new Query();
 
@@ -50,9 +55,6 @@ public class EncounterResourceProvider extends BaseMongoResourceProvider<Encount
             query.addCriteria(Criteria.where("content.status").is(status.getValue()));
         }
 
-        return repository.findByQuery(query, collectionName())
-                .stream()
-                .map(this::deserialize)
-                .collect(Collectors.toList());
+        return page(query, count, offset);
     }
 }

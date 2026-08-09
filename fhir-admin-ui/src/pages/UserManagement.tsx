@@ -18,7 +18,8 @@ import {
   TableHeaderCell,
 } from '../components/ui/Table'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
-import type { AppUser } from '../types'
+import type { AppUser, UserRole } from '../types'
+import { USER_ROLES } from '../types'
 
 export function UserManagement() {
   const { data: users, isLoading, error, refetch } = useUsers()
@@ -33,18 +34,18 @@ export function UserManagement() {
   // Create form state
   const [createUsername, setCreateUsername] = useState('')
   const [createPassword, setCreatePassword] = useState('')
-  const [createRole, setCreateRole] = useState<'ADMIN' | 'USER'>('USER')
+  const [createRole, setCreateRole] = useState<UserRole>('READONLY')
   const [createError, setCreateError] = useState('')
 
   // Edit form state
-  const [editRole, setEditRole] = useState<'ADMIN' | 'USER'>('USER')
+  const [editRole, setEditRole] = useState<UserRole>('READONLY')
   const [editEnabled, setEditEnabled] = useState(true)
   const [editError, setEditError] = useState('')
 
   const openCreate = () => {
     setCreateUsername('')
     setCreatePassword('')
-    setCreateRole('USER')
+    setCreateRole('READONLY')
     setCreateError('')
     setShowCreate(true)
   }
@@ -71,7 +72,9 @@ export function UserManagement() {
       })
       setShowCreate(false)
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create user')
+      const apiMessage = (err as { response?: { data?: { error?: string } } })
+        ?.response?.data?.error
+      setCreateError(apiMessage ?? 'Failed to create user')
     }
   }
 
@@ -86,7 +89,9 @@ export function UserManagement() {
       })
       setEditUser(null)
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to update user')
+      const apiMessage = (err as { response?: { data?: { error?: string } } })
+        ?.response?.data?.error
+      setEditError(apiMessage ?? 'Failed to update user')
     }
   }
 
@@ -205,10 +210,13 @@ export function UserManagement() {
             id="new-role"
             label="Role"
             value={createRole}
-            onChange={(e) => setCreateRole(e.target.value as 'ADMIN' | 'USER')}
+            onChange={(e) => setCreateRole(e.target.value as UserRole)}
           >
-            <option value="USER">USER</option>
-            <option value="ADMIN">ADMIN</option>
+            {USER_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
           </Select>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" type="button" onClick={() => setShowCreate(false)}>
@@ -237,10 +245,13 @@ export function UserManagement() {
             id="edit-role"
             label="Role"
             value={editRole}
-            onChange={(e) => setEditRole(e.target.value as 'ADMIN' | 'USER')}
+            onChange={(e) => setEditRole(e.target.value as UserRole)}
           >
-            <option value="USER">USER</option>
-            <option value="ADMIN">ADMIN</option>
+            {USER_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
           </Select>
           <div className="flex items-center gap-2">
             <input

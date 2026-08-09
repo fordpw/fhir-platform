@@ -2,7 +2,10 @@ package com.fhirplatform.provider;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.annotation.OptionalParam;
+import ca.uhn.fhir.rest.annotation.Count;
+import ca.uhn.fhir.rest.annotation.Offset;
 import ca.uhn.fhir.rest.annotation.Search;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.param.DateParam;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import com.fhirplatform.repository.FhirResourceRepository;
@@ -32,9 +35,11 @@ public class ImmunizationResourceProvider extends BaseMongoResourceProvider<Immu
     }
 
     @Search
-    public List<Immunization> searchImmunizations(
+    public IBundleProvider searchImmunizations(
             @OptionalParam(name = Immunization.SP_PATIENT) ReferenceParam patient,
-            @OptionalParam(name = Immunization.SP_DATE) DateParam date) {
+            @OptionalParam(name = Immunization.SP_DATE) DateParam date,
+            @Count Integer count,
+            @Offset Integer offset) {
 
         Query query = new Query();
 
@@ -45,9 +50,6 @@ public class ImmunizationResourceProvider extends BaseMongoResourceProvider<Immu
             query.addCriteria(Criteria.where("content.occurrenceDateTime").regex(date.getValueAsString()));
         }
 
-        return repository.findByQuery(query, collectionName())
-                .stream()
-                .map(this::deserialize)
-                .collect(Collectors.toList());
+        return page(query, count, offset);
     }
 }

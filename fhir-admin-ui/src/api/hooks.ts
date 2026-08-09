@@ -57,7 +57,7 @@ export function useCreateUser() {
 
 export function useUpdateUser() {
   const qc = useQueryClient()
-  return useMutation<void, Error, { id: number; data: Partial<AppUser> }>({
+  return useMutation<void, Error, { id: string; data: Partial<AppUser> }>({
     mutationFn: async ({ id, data }) => {
       await apiClient.put(`/api/admin/users/${id}`, data)
     },
@@ -69,7 +69,7 @@ export function useUpdateUser() {
 
 export function useDeleteUser() {
   const qc = useQueryClient()
-  return useMutation<void, Error, number>({
+  return useMutation<void, Error, string>({
     mutationFn: async (id) => {
       await apiClient.delete(`/api/admin/users/${id}`)
     },

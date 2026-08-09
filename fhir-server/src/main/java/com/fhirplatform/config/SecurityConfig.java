@@ -32,7 +32,12 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
+                // Only login is public. Registration previously sat behind
+                // /api/auth/** and honoured a caller-supplied role, which let an
+                // anonymous caller mint themselves an ADMIN account. Account
+                // creation is an administrative action.
+                .requestMatchers("/api/auth/login").permitAll()
+                .requestMatchers("/api/auth/register").hasRole("ADMIN")
                 .requestMatchers("/fhir/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()

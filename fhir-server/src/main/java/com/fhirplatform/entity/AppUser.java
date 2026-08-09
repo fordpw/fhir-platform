@@ -35,4 +35,11 @@ public class AppUser {
     public static final String ROLE_ADMIN = "ADMIN";
     public static final String ROLE_PRACTITIONER = "PRACTITIONER";
     public static final String ROLE_READONLY = "READONLY";
+
+    public static final java.util.Set<String> VALID_ROLES =
+            java.util.Set.of(ROLE_ADMIN, ROLE_PRACTITIONER, ROLE_READONLY);
+
+    public static boolean isValidRole(String role) {
+        return role != null && VALID_ROLES.contains(role);
+    }
 }
