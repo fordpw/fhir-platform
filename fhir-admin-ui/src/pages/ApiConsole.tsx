@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Send, Trash2, Plus, Copy, ShieldAlert, History } from 'lucide-react'
+import { Send, Trash2, Plus, Copy, ShieldAlert, History, Info } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -30,6 +30,16 @@ interface HistoryEntry {
   durationMs: number
 }
 
+/**
+ * Open on an admin-gated, read-only endpoint.
+ *
+ * The first catalog entry is a public FHIR search, and `/fhir/**` is permitAll,
+ * so the Authorization toggle provably cannot change the outcome there. Landing
+ * on it makes the toggle look broken.
+ */
+const DEFAULT_ENDPOINT_ID =
+  ENDPOINTS.find((e) => e.id === 'admin-stats')?.id ?? ENDPOINTS[0].id
+
 function statusVariant(status: number) {
   if (status >= 200 && status < 300) return 'success' as const
   if (status >= 400 && status < 500) return 'warning' as const
@@ -38,7 +48,7 @@ function statusVariant(status: number) {
 }
 
 export function ApiConsole() {
-  const [endpointId, setEndpointId] = useState(ENDPOINTS[0].id)
+  const [endpointId, setEndpointId] = useState(DEFAULT_ENDPOINT_ID)
   const endpoint = useMemo(
     () => ENDPOINTS.find((e) => e.id === endpointId) as EndpointDef,
     [endpointId]
@@ -305,6 +315,23 @@ export function ApiConsole() {
                   <span>
                     This endpoint requires ADMIN. Without the header it should be
                     rejected — useful for confirming access control.
+                  </span>
+                </div>
+              )}
+
+              {/*
+                Without this, turning the toggle off on a public endpoint looks
+                like the toggle is broken: the request succeeds either way
+                because /fhir/** and /api/auth/login need no credentials.
+              */}
+              {!sendAuth && endpoint.auth === 'public' && (
+                <div className="flex items-start gap-2 rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    This endpoint is public, so it responds the same with or
+                    without the header. Choose one marked{' '}
+                    <span className="font-medium">Requires ADMIN</span> to see the
+                    toggle take effect.
                   </span>
                 </div>
               )}
