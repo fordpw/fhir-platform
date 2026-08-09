@@ -8,6 +8,7 @@ import {
   LogOut,
   Heart,
   UserCog,
+  TerminalSquare,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../context/AuthContext'
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
   { label: 'Resources', path: '/resources', icon: <Database className="h-5 w-5" /> },
   { label: 'Synthea', path: '/synthea', icon: <FlaskConical className="h-5 w-5" />, adminOnly: true },
   { label: 'Users', path: '/users', icon: <UserCog className="h-5 w-5" />, adminOnly: true },
+  { label: 'API Console', path: '/api-console', icon: <TerminalSquare className="h-5 w-5" />, adminOnly: true },
   { label: 'Settings', path: '/settings', icon: <Settings className="h-5 w-5" /> },
 ]
 

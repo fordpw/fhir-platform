@@ -8,6 +8,7 @@ import { Patients } from './pages/Patients'
 import { ResourceExplorer } from './pages/ResourceExplorer'
 import { SyntheaGenerator } from './pages/SyntheaGenerator'
 import { UserManagement } from './pages/UserManagement'
+import { ApiConsole } from './pages/ApiConsole'
 import { Settings } from './pages/Settings'
 
 export default function App() {
@@ -28,6 +29,8 @@ export default function App() {
               <Route element={<ProtectedRoute adminOnly />}>
                 <Route path="/synthea" element={<SyntheaGenerator />} />
                 <Route path="/users" element={<UserManagement />} />
+                {/* Admin-only: the console can issue DELETE against live data. */}
+                <Route path="/api-console" element={<ApiConsole />} />
               </Route>
             </Route>
           </Route>
