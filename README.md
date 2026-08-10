@@ -136,15 +136,30 @@ Each supports CRUD operations and resource-specific search parameters.
 
 ## Staging Environment
 
-Runs on separate ports alongside the dev stack:
+Runs on separate ports alongside the dev stack. **There is no production
+environment in this repository.**
 
-| Service | Dev | Staging |
+| | Dev | Staging |
 |---|---|---|
 | Admin UI | http://localhost:5173 | http://localhost:5174 |
 | FHIR API | http://localhost:8080 | http://localhost:8081 |
-| MongoDB | :27017 | :27018 |
+| MongoDB | :27017 (`fhirdb`) | :27018 (`fhirdb_staging`) |
+| Compose project | `fhir-platform` (default) | `fhir-staging` |
+| Start | `docker compose up -d --build` | `pwsh scripts/deploy-staging.ps1` |
 
-Deploy manually: `pwsh scripts/deploy-staging.ps1`
+Staging is a compose override and must be started with **`-p fhir-staging`**.
+Without it both stacks share a project namespace and therefore the
+`synthea-output` volume. `scripts/deploy-staging.ps1` passes the flag for you.
+
+Staging takes its signing key from **`STAGING_APP_JWT_SECRET`**, deliberately a
+different variable from dev's `APP_JWT_SECRET`, so a value exported for one does
+not silently apply to both. A shared key would make tokens minted in one
+environment valid in the other.
+
+```powershell
+$env:STAGING_APP_JWT_SECRET = '<unique-value-for-staging>'
+pwsh scripts/deploy-staging.ps1
+```
 
 ## Key Features
 
@@ -167,13 +182,15 @@ Deploy manually: `pwsh scripts/deploy-staging.ps1`
 - Generic FHIR resource explorer with CRUD
 - Synthea data generation controls
 - User management with role-based access
+- API Console for invoking any endpoint and inspecting the raw response
 - Server settings and CapabilityStatement viewer
 
 ### Security
 - JWT authentication
-- Role-based access: ADMIN, PRACTITIONER, READONLY
+- Role-based access: ADMIN, PRACTITIONER, READONLY (there is no `USER` role)
+- `401` for missing/invalid/expired credentials, `403` for insufficient role
+- User creation is admin-only; `/api/auth/login` is the only public auth route
 - BCrypt password hashing
-- Protected API endpoints
 
 ## API Examples
 
@@ -205,11 +222,35 @@ Key settings in `fhir-server/src/main/resources/application.yaml`:
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `spring.data.mongodb.uri` | `mongodb://localhost:27017/fhirdb` | MongoDB connection |
-| `jwt.secret` | (generated) | JWT signing secret |
-| `jwt.expiration` | `86400000` (24h) | Token expiration in ms |
+| `spring.data.mongodb.uri` | `mongodb://localhost:27017/fhirdb` | MongoDB connection (env: `SPRING_DATA_MONGODB_URI`) |
+| `app.jwt.secret` | dev placeholder in yaml | JWT signing secret (env: **`APP_JWT_SECRET`**) |
+| `app.jwt.expiration` | `86400000` (24h) | Token lifetime in ms (env: `APP_JWT_EXPIRATION`) |
 | `app.synthea.jar-path` | `./synthea-with-dependencies.jar` | Path to Synthea JAR (env: `SYNTHEA_JAR_PATH`) |
 | `app.synthea.output-directory` | `./output` | Base output dir; each job writes to `<base>/<jobId>/fhir` (env: `SYNTHEA_OUTPUT_DIR`) |
+| `app.cors.allowed-origins` | `http://localhost:5173` | Permitted browser origin (env: `APP_CORS_ALLOWED_ORIGINS`) |
+
+> **Set `APP_JWT_SECRET` in any shared environment.** The property is
+> `app.jwt.secret`, so Spring's relaxed binding requires the `APP_` prefix. A
+> bare `JWT_SECRET` binds to `jwt.secret`, which nothing reads, and the
+> committed default silently stays in force. The default is public — it is in
+> this repository — so treat it as development-only.
+>
+> ```powershell
+> [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Max 256 }))
+> ```
+
+## Testing
+
+```powershell
+cd fhir-server
+mvn test
+```
+
+The backend suite covers JWT classification, the 401/403 split, admin user
+creation and role validation, and search paging. It uses `@WebMvcTest` slices
+and mocked repositories, so **no MongoDB is required** and it runs anywhere.
+
+The frontend has no test tooling yet; `npm run build` type-checks via `tsc -b`.
 
 ## Synthea Setup
 
