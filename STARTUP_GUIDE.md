@@ -18,7 +18,8 @@ A complete guide for starting up and using all features of the FHIR R4 Platform.
 10. [User Roles & Permissions](#10-user-roles--permissions)
 11. [CI/CD Pipeline](#11-cicd-pipeline)
 12. [Configuration Reference](#12-configuration-reference)
-13. [Troubleshooting](#13-troubleshooting)
+13. [Running the Tests](#13-running-the-tests)
+14. [Troubleshooting](#14-troubleshooting)
 
 ---
 
@@ -170,6 +171,32 @@ docker compose -f docker-compose.yml -f docker-compose.staging.yml -p fhir-stagi
 docker compose -f docker-compose.yml -f docker-compose.staging.yml -p fhir-staging down
 ```
 
+### The `-p fhir-staging` flag is required
+
+Without it, staging runs under the default compose project name and shares dev's
+named volumes — including `synthea-output`. `scripts/deploy-staging.ps1` passes
+the flag; pass it yourself when invoking compose directly.
+
+### Staging has its own signing key
+
+Staging sets `APP_JWT_SECRET` from **`STAGING_APP_JWT_SECRET`**, deliberately a
+different variable from dev's `APP_JWT_SECRET`. If both environments resolved to
+the same secret, a token minted in one would be accepted by the other.
+
+```powershell
+$env:STAGING_APP_JWT_SECRET = '<unique-value-for-staging>'
+pwsh scripts/deploy-staging.ps1
+```
+
+The committed default is a placeholder. Set a real value before staging is
+reachable beyond localhost. Changing it invalidates existing staging sessions.
+
+### Staging data is separate
+
+Staging uses its own database (`fhirdb_staging` on :27018) and its own volumes,
+so resource counts and Synthea jobs differ from dev. There is **no production
+environment** defined in this repository.
+
 ---
 
 ## 5. Synthea Setup
@@ -222,7 +249,7 @@ java -version
 
 ### Generate Data
 
-You can trigger generation via the Admin UI (see [Section 6](#6-admin-ui-features)) or directly via the API (see [Section 8](#8-admin-api-reference)).
+You can trigger generation via the Admin UI (see [Section 7](#7-admin-ui-features)) or directly via the API (see [Section 9](#9-admin-api-reference)).
 
 Each job exports into its own directory (`<output-directory>/<jobId>/fhir`), and
 those FHIR bundles are automatically imported into MongoDB after generation completes.
@@ -288,7 +315,7 @@ Patient, Practitioner, Organization, Encounter, Condition, Observation, Medicati
 - Monitor job status (PENDING → RUNNING → COMPLETED or FAILED).
 - On completion, all FHIR bundles are automatically imported into MongoDB.
 
-> Requires the Synthea JAR to be set up (see [Section 4](#4-synthea-setup-synthetic-data-generation)).
+> Requires the Synthea JAR to be set up (see [Section 5](#5-synthea-setup)).
 
 ### User Management (ADMIN only)
 
@@ -296,6 +323,16 @@ Patient, Practitioner, Organization, Encounter, Condition, Observation, Medicati
 - Create new users with a role: `ADMIN`, `PRACTITIONER`, or `READONLY`.
 - Enable or disable user accounts.
 - Delete users.
+
+### API Console (ADMIN only)
+
+- Invoke any endpoint the platform exposes — FHIR CRUD across all 15 resource
+  types, plus the auth, admin and Synthea APIs.
+- Inspect the raw response: status code, duration, headers, pretty-printed body.
+- Toggle the `Authorization` header to exercise access control. Note that
+  `/fhir/**` is public, so the toggle changes nothing there; pick an endpoint
+  marked **Requires ADMIN** to see it take effect.
+- `DELETE` requires confirmation — it operates on the live database.
 
 ### Settings
 
@@ -306,7 +343,10 @@ Patient, Practitioner, Organization, Encounter, Condition, Observation, Medicati
 
 ## 8. FHIR REST API Reference
 
-All FHIR endpoints follow the standard FHIR R4 REST pattern. No authentication is required for read operations by default (configurable).
+All FHIR endpoints follow the standard FHIR R4 REST pattern. `/fhir/**` is
+`permitAll` in `SecurityConfig`, so **no authentication is required for any FHIR
+operation, including writes and deletes**. Sending an `Authorization` header
+changes nothing here. Only `/api/admin/**` is role-gated.
 
 ### Base URL
 
@@ -331,6 +371,20 @@ Replace `{ResourceType}` with: `Patient`, `Encounter`, `Condition`, etc.
 | Create | POST | `/fhir/{ResourceType}` |
 | Update | PUT | `/fhir/{ResourceType}/{id}` |
 | Delete | DELETE | `/fhir/{ResourceType}/{id}` |
+
+### Paging
+
+Searches are paged in MongoDB. `Bundle.total` reports the **full match count**,
+not the size of the page returned.
+
+| Parameter | Default | Notes |
+|---|---|---|
+| `_count` | 20 | Page size, capped at 200 |
+| `_offset` | 0 | Rows to skip |
+
+```powershell
+Invoke-RestMethod "http://localhost:8080/fhir/Observation?_count=25&_offset=50"
+```
 
 ### Example: Search Patients by Name
 
@@ -377,14 +431,35 @@ Body: { "username": "admin", "password": "admin" }
 
 Returns: `{ "token": "...", "username": "admin", "role": "ADMIN" }`
 
-#### Register New User
+Login is the **only** public endpoint under `/api/auth`.
+
+#### Authentication failures
+
+| Status | Meaning | `code` |
+|---|---|---|
+| 401 | No credentials supplied | `unauthorized` |
+| 401 | Token malformed or signed with another key | `invalid_token` |
+| 401 | Token expired — sign in again | `token_expired` |
+| 403 | Authenticated, but the role is insufficient | `forbidden` |
+
+The distinction matters: **401 means re-authenticate, 403 means this account is
+not permitted and signing in again will not help.** The admin UI redirects to
+the login screen on 401 only.
+
+#### Register New User (ADMIN only)
 
 ```powershell
 POST /api/auth/register
+Authorization: Bearer <admin token>
 Body: { "username": "newuser", "password": "securepass", "role": "PRACTITIONER" }
 ```
 
-Roles: `ADMIN`, `PRACTITIONER`, `READONLY`
+> This endpoint was previously public **and** honoured the requested role, which
+> allowed anyone to create themselves an ADMIN account. It now requires ADMIN.
+> Prefer `POST /api/admin/users` below; this route is retained for compatibility.
+
+Roles: `ADMIN`, `PRACTITIONER`, `READONLY`. There is no `USER` role — anything
+else is rejected with 400.
 
 ### Resource Stats
 
@@ -401,6 +476,10 @@ Returns counts for all 15 FHIR resource types plus a total.
 # List all users
 GET /api/admin/users
 
+# Create a user
+POST /api/admin/users
+Body: { "username": "newuser", "password": "securepass", "role": "READONLY" }
+
 # Get a specific user
 GET /api/admin/users/{id}
 
@@ -411,6 +490,10 @@ Body: { "role": "READONLY", "enabled": false }
 # Delete a user
 DELETE /api/admin/users/{id}
 ```
+
+`POST /api/admin/users` returns **201** with the created user, **409** if the
+username exists, and **400** for an unrecognised role. Ids are MongoDB ObjectId
+**strings**, not numbers.
 
 ### Synthea Data Generation
 
@@ -501,8 +584,9 @@ spring:
 
 app:
   jwt:
-    secret: <base64-encoded-secret>
-    expiration: 86400000          # 24 hours in milliseconds
+    # Overridden by APP_JWT_SECRET / APP_JWT_EXPIRATION
+    secret: ${APP_JWT_SECRET:<dev-placeholder-committed-in-repo>}
+    expiration: ${APP_JWT_EXPIRATION:86400000}   # 24 hours in milliseconds
 
   synthea:
     jar-path: ${SYNTHEA_JAR_PATH:./synthea-with-dependencies.jar}
@@ -539,7 +623,26 @@ When running via Docker Compose, these can be overridden:
 
 ---
 
-## 13. Troubleshooting
+## 13. Running the Tests
+
+```powershell
+cd fhir-server
+mvn test
+```
+
+The backend suite covers JWT token classification, the 401/403 split, admin user
+creation and role validation, and search paging. It uses `@WebMvcTest` slices
+and mocked repositories, so **MongoDB is not required** and it runs anywhere —
+including CI, which executes it as part of `mvn verify`.
+
+The frontend has no test tooling yet. `npm run build` runs `tsc -b` and will
+catch type errors, but there are no unit or end-to-end tests, so UI behaviour
+(dashboard rendering, the API Console auth toggle, redirect-on-401) is verified
+manually.
+
+---
+
+## 14. Troubleshooting
 
 ### Backend won't start
 
@@ -564,6 +667,29 @@ When running via Docker Compose, these can be overridden:
 - Confirm `java` is on the system PATH (the server invokes it as a subprocess).
 - Check the server console logs for `[Synthea]` prefixed lines showing Synthea's output.
 - Ensure the output directory is writable by the process.
+
+### Admin pages show errors but FHIR pages still work
+
+Symptom: Dashboard, Users and Synthea fail to load, while Patients and Resource
+Explorer are fine. That split is the giveaway — `/fhir/**` is public, so only
+the `/api/admin/**` calls are failing.
+
+Usually an expired token. Sessions last 24 hours (`APP_JWT_EXPIRATION`). Sign
+out and back in; you should see a "session has expired" notice on the login
+screen. If the UI does not redirect you, clear the stored session:
+
+```js
+localStorage.removeItem('auth_token'); localStorage.removeItem('auth_user'); location.href = '/login'
+```
+
+It can also mean the signing key changed — for example after setting
+`APP_JWT_SECRET` — which invalidates every previously issued token. Same fix.
+
+### A token from one environment is rejected by another
+
+Expected. Dev and staging should use different `APP_JWT_SECRET` values, so
+tokens are not portable between them. If a token *is* accepted by both, they
+are sharing a key and one of them needs a distinct value.
 
 ### "Invalid username or password" on login
 
