@@ -76,14 +76,34 @@ The test suite was mutation-checked rather than assumed correct: removing the
 `exceptionHandling` block from `SecurityConfig` makes it fail with
 `Status expected:<401> but was:<403>` — the original symptom.
 
+### Follow-up: frontend test suite
+
+The gap recorded below as risk 1 is now closed. `fhir-admin-ui` has a Vitest +
+Testing Library suite (49 tests) running under `happy-dom`, needing neither a
+browser nor a backend, wired into CI alongside the build.
+
+It covers the behaviour that actually broke: the interceptor redirecting on 401
+but not 403 and never hijacking a failed login, the login session notice, the
+dashboard rendering from the nested stats payload, the API Console auth toggle
+and its no-logout-on-401 guarantee, and the endpoint catalog.
+
+Mutation-checked like the backend suite: reintroducing the flat-payload read in
+`Dashboard` and the public default endpoint in `ApiConsole` produces 7 failures.
+
+While writing it, one more instance of the string/number id mismatch surfaced —
+`SyntheaJob.id` was typed `number` but the API returns a Mongo ObjectId string,
+the same defect previously fixed on `AppUser.id`. Corrected along with
+`useSyntheaJob`.
+
 ### Known remaining risks
 
-1. **No frontend test tooling.** `fhir-admin-ui` has no vitest, jest or
-   Playwright. Dashboard rendering, the console auth toggle and
-   redirect-on-401 are verified manually only.
-2. **Both signing keys are committed placeholders.** Set `APP_JWT_SECRET` and
+1. **Both signing keys are committed placeholders.** Set `APP_JWT_SECRET` and
    `STAGING_APP_JWT_SECRET` to unique random values before either environment
    is reachable beyond localhost.
-3. **Every push to `master` auto-deploys to staging** via the self-hosted
+2. **Every push to `master` auto-deploys to staging** via the self-hosted
    runner.
-4. **There is no production environment** defined in this repository.
+3. **There is no production environment** defined in this repository.
+4. **No end-to-end coverage.** Both suites are unit/integration level with the
+   network mocked. Nothing exercises a real browser against a running stack, so
+   wiring faults between the built frontend and the API would still be caught
+   only by hand.
