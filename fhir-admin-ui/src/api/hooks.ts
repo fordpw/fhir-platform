@@ -210,7 +210,7 @@ export function useSyntheaJobs() {
   })
 }
 
-export function useSyntheaJob(id: number | null) {
+export function useSyntheaJob(id: string | null) {
   return useQuery<SyntheaJob>({
     queryKey: ['synthea-jobs', id],
     queryFn: async () => {

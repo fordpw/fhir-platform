@@ -250,7 +250,15 @@ The backend suite covers JWT classification, the 401/403 split, admin user
 creation and role validation, and search paging. It uses `@WebMvcTest` slices
 and mocked repositories, so **no MongoDB is required** and it runs anywhere.
 
-The frontend has no test tooling yet; `npm run build` type-checks via `tsc -b`.
+```powershell
+cd fhir-admin-ui
+npm test
+```
+
+The frontend suite (Vitest + Testing Library, `happy-dom`) covers the 401/403
+interceptor behaviour, the login session notice, dashboard rendering of the
+nested stats payload, the API Console auth toggle, and the endpoint catalog.
+No browser or backend is needed. Both suites run in CI.
 
 ## Synthea Setup
 

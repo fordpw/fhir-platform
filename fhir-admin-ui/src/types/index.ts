@@ -65,7 +65,8 @@ export interface FhirBundle {
 }
 
 export interface SyntheaJob {
-  id: number
+  /** Mongo ObjectId string, not a number. */
+  id: string
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
   populationSize: number
   state: string

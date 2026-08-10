@@ -635,10 +635,28 @@ creation and role validation, and search paging. It uses `@WebMvcTest` slices
 and mocked repositories, so **MongoDB is not required** and it runs anywhere —
 including CI, which executes it as part of `mvn verify`.
 
-The frontend has no test tooling yet. `npm run build` runs `tsc -b` and will
-catch type errors, but there are no unit or end-to-end tests, so UI behaviour
-(dashboard rendering, the API Console auth toggle, redirect-on-401) is verified
-manually.
+### Frontend
+
+```powershell
+cd fhir-admin-ui
+npm test          # single run
+npm run test:watch
+```
+
+Vitest with Testing Library, running under `happy-dom`. No browser and no
+backend are required. Coverage focuses on the behaviour that previously broke:
+
+- the response interceptor redirects on **401** but not on **403**, and never
+  hijacks a failed login attempt
+- the login screen shows the session-expired notice and consumes it
+- the dashboard renders one card per resource type from the **nested** stats
+  payload, not the wrapper object
+- the API Console opens on an admin-gated endpoint, passes the auth header only
+  when the toggle is on, and renders a 401 in the panel **without** signing the
+  operator out
+- the endpoint catalog builds correct URLs and matches the backend auth model
+
+Both suites run in CI on every pull request.
 
 ---
 

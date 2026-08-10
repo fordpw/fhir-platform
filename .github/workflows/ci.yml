@@ -54,6 +54,10 @@ jobs:
         working-directory: fhir-admin-ui
         run: npm ci
 
+      - name: Test
+        working-directory: fhir-admin-ui
+        run: npm test
+
       - name: Type-check & build
         working-directory: fhir-admin-ui
         run: npm run build
