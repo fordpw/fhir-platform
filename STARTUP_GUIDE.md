@@ -9,14 +9,16 @@ A complete guide for starting up and using all features of the FHIR R4 Platform.
 1. [Prerequisites](#1-prerequisites)
 2. [Option A — Local Development (Recommended)](#2-option-a--local-development-recommended)
 3. [Option B — Docker Compose](#3-option-b--docker-compose)
-4. [Synthea Setup (Synthetic Data Generation)](#4-synthea-setup-synthetic-data-generation)
-5. [Logging In](#5-logging-in)
-6. [Admin UI Features](#6-admin-ui-features)
-7. [FHIR REST API Reference](#7-fhir-rest-api-reference)
-8. [Admin API Reference](#8-admin-api-reference)
-9. [User Roles & Permissions](#9-user-roles--permissions)
-10. [Configuration Reference](#10-configuration-reference)
-11. [Troubleshooting](#11-troubleshooting)
+4. [Option C — Staging Environment](#4-option-c--staging-environment)
+5. [Synthea Setup (Synthetic Data Generation)](#5-synthea-setup-synthetic-data-generation)
+6. [Logging In](#6-logging-in)
+7. [Admin UI Features](#7-admin-ui-features)
+8. [FHIR REST API Reference](#8-fhir-rest-api-reference)
+9. [Admin API Reference](#9-admin-api-reference)
+10. [User Roles & Permissions](#10-user-roles--permissions)
+11. [CI/CD Pipeline](#11-cicd-pipeline)
+12. [Configuration Reference](#12-configuration-reference)
+13. [Troubleshooting](#13-troubleshooting)
 
 ---
 
@@ -145,7 +147,32 @@ docker compose down -v
 
 ---
 
-## 4. Synthea Setup (Synthetic Data Generation)
+## 4. Option C — Staging Environment
+The staging stack runs alongside the dev stack on separate ports using `docker-compose.staging.yml`. It is **automatically deployed** on every push to `master` via a GitHub Actions self-hosted runner.
+### Ports
+| Service | Staging | Dev |
+|---|---|---|
+| Admin UI | http://localhost:5174 | http://localhost:5173 |
+| FHIR API | http://localhost:8081 | http://localhost:8080 |
+| MongoDB | localhost:27018 | localhost:27017 |
+### Manual deployment
+```powershell
+cd C:\Users\paulw\fhir-platform
+pwsh scripts/deploy-staging.ps1
+```
+The script pulls the latest `master`, rebuilds images, brings up the stack, and health-checks the backend before reporting success.
+### Docker Compose (manual)
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.staging.yml -p fhir-staging up -d --build
+```
+### Stop staging
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.staging.yml -p fhir-staging down
+```
+
+---
+
+## 5. Synthea Setup
 
 Synthea generates realistic synthetic patient records in FHIR R4 format. This is an **optional** feature but required for generating test data.
 
@@ -202,7 +229,7 @@ those FHIR bundles are automatically imported into MongoDB after generation comp
 
 ---
 
-## 5. Logging In
+## 6. Logging In
 
 ### Admin UI
 
@@ -231,7 +258,7 @@ Authorization: Bearer <token>
 
 ---
 
-## 6. Admin UI Features
+## 7. Admin UI Features
 
 ### Dashboard
 
@@ -277,7 +304,7 @@ Patient, Practitioner, Organization, Encounter, Condition, Observation, Medicati
 
 ---
 
-## 7. FHIR REST API Reference
+## 8. FHIR REST API Reference
 
 All FHIR endpoints follow the standard FHIR R4 REST pattern. No authentication is required for read operations by default (configurable).
 
@@ -335,7 +362,7 @@ Invoke-RestMethod -Uri "http://localhost:8080/fhir/Patient" `
 
 ---
 
-## 8. Admin API Reference
+## 9. Admin API Reference
 
 All Admin API endpoints require a valid JWT token in the `Authorization` header.
 
@@ -426,7 +453,7 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/admin/synthea/jobs/$($job.jobI
 
 ---
 
-## 9. User Roles & Permissions
+## 10. User Roles & Permissions
 
 | Role | Description |
 |---|---|
@@ -438,7 +465,28 @@ Roles are enforced via JWT claims and Spring Security on the backend.
 
 ---
 
-## 10. Configuration Reference
+## 11. CI/CD Pipeline
+GitHub Actions workflows live in `.github/workflows/`.
+### ci.yml — Build & Test (on every PR and push to `master`)
+| Job | What it does |
+|---|---|
+| Backend (Java / Maven) | `mvn verify` — compile, test, package; uploads JAR artifact |
+| Frontend (Node / Vite) | `npm ci && npm run build` — type-check + Vite build; uploads `dist/` artifact |
+| Docker Compose Build | `docker compose build` — validates both Dockerfiles build cleanly (runs after backend + frontend pass) |
+### deploy-staging.yml — Staging Deploy (on every push to `master`)
+Runs on the local self-hosted runner (label: `staging`). Calls `scripts/deploy-staging.ps1` then verifies all three staging endpoints.
+### Self-hosted runner
+The runner is installed at `C:\actions-runner` and must be running for staging deploys to trigger:
+```powershell
+# Start the runner (if not already running)
+Set-Location C:\actions-runner
+cmd /c run.cmd
+```
+To check runner status on GitHub: **Settings → Actions → Runners**.
+
+---
+
+## 12. Configuration Reference
 
 Key settings in `fhir-server/src/main/resources/application.yaml`:
 
@@ -491,7 +539,7 @@ When running via Docker Compose, these can be overridden:
 
 ---
 
-## 11. Troubleshooting
+## 13. Troubleshooting
 
 ### Backend won't start
 

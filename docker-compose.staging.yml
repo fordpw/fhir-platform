@@ -1,0 +1,46 @@
+# Staging environment override
+#
+# Usage (the -p flag is required):
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml -p fhir-staging up -d --build
+#
+# Without -p, staging shares the default compose project namespace with dev and
+# therefore shares its named volumes, including synthea-output.
+# scripts/deploy-staging.ps1 passes the flag for you.
+#
+# Runs on separate ports from dev so both stacks can coexist:
+#   MongoDB  : 27018
+#   Backend  : 8081
+#   Frontend : 5174
+
+services:
+  mongodb:
+    container_name: fhir-mongodb-staging
+    ports: !override
+      - "27018:27017"
+    volumes: !override
+      - mongo-staging-data:/data/db
+
+  fhir-server:
+    container_name: fhir-server-staging
+    # Override base ports entirely — prevents inheriting 8080:8080 from docker-compose.yml
+    ports: !override
+      - "8081:8080"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/fhirdb_staging
+      # Must be APP_JWT_SECRET: the property is app.jwt.secret, so a bare
+      # JWT_SECRET binds to jwt.secret and is silently ignored, leaving the
+      # committed default in force.
+      #
+      # Overridden by STAGING_APP_JWT_SECRET rather than APP_JWT_SECRET, so a
+      # value exported for dev does not silently apply here too. Sharing a
+      # signing key makes tokens interchangeable between the environments.
+      APP_JWT_SECRET: ${STAGING_APP_JWT_SECRET:-staging-only-secret-override-with-STAGING_APP_JWT_SECRET}
+      APP_CORS_ALLOWED_ORIGINS: http://localhost:5174
+
+  fhir-admin-ui:
+    container_name: fhir-admin-ui-staging
+    ports: !override
+      - "5174:80"
+
+volumes:
+  mongo-staging-data:
