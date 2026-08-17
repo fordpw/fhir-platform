@@ -1,0 +1,121 @@
+name: Deploy to Production
+
+on:
+  # Manual trigger from the Actions tab — for hotfixes or ad-hoc deploys
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy (default: latest master SHA)'
+        required: false
+        default: ''
+
+  # Automatic trigger on version tags (e.g. v1.0.0, v1.1.0)
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/fhir-platform
+
+jobs:
+  # ── Build and push images to GHCR ────────────────────────────────────────────
+  build-and-push:
+    name: Build & push images
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine image tag
+        id: meta
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            TAG="${{ github.event.inputs.image_tag }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="sha-$(git rev-parse --short HEAD)"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Building with tag: ${TAG}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push fhir-server
+        uses: docker/build-push-action@v5
+        with:
+          context: ./fhir-server
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/fhir-server:${{ steps.meta.outputs.tag }}
+            ${{ env.IMAGE_PREFIX }}/fhir-server:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push fhir-admin-ui
+        uses: docker/build-push-action@v5
+        with:
+          context: ./fhir-admin-ui
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/fhir-admin-ui:${{ steps.meta.outputs.tag }}
+            ${{ env.IMAGE_PREFIX }}/fhir-admin-ui:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Deploy to production host (requires approval) ─────────────────────────────
+  deploy:
+    name: Deploy to production
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    # The 'production' environment must be created in repo Settings → Environments
+    # and should have a required reviewer configured for the approval gate.
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ vars.PRODUCTION_HOST }}
+          username: deploy
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          envs: IMAGE_TAG,DOMAIN,APP_JWT_SECRET,MONGO_INITDB_ROOT_PASSWORD,MONGO_APP_PASSWORD
+          script: |
+            export IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
+            export DOMAIN="${{ vars.DOMAIN }}"
+            export APP_JWT_SECRET="${{ secrets.APP_JWT_SECRET }}"
+            export MONGO_INITDB_ROOT_PASSWORD="${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}"
+            export MONGO_APP_PASSWORD="${{ secrets.MONGO_APP_PASSWORD }}"
+            bash /opt/fhir-platform/scripts/deploy-production.sh
+
+      - name: Post-deploy summary
+        run: |
+          echo "### Production Deploy Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Image tag** | ${{ needs.build-and-push.outputs.image_tag }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Domain** | https://${{ vars.DOMAIN }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Triggered by** | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Ref** | ${{ github.ref_name }} |" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,127 @@
+# Production environment overlay
+#
+# Usage (the -p flag is required):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -p fhir-prod up -d
+#
+# Required environment variables (set in the shell or via a .env.prod file — never commit real values):
+#   DOMAIN                    e.g. fhir.yourdomain.com
+#   APP_JWT_SECRET            unique random value (openssl rand -base64 32)
+#   MONGO_INITDB_ROOT_PASSWORD  MongoDB root password (used only on first init)
+#   MONGO_APP_PASSWORD        MongoDB application user password
+#   IMAGE_TAG                 Docker image tag to deploy (e.g. sha-abc1234 or v1.0.0)
+#
+# Images are pulled from GHCR — the production host does NOT need the source code.
+# Build and push images with the deploy-production.yml workflow.
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: fhir-mongodb-prod
+    restart: always
+    command: ["mongod", "--auth"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: fhirdb
+    ports: !override
+      - "127.0.0.1:27017:27017"   # bind to localhost only — not exposed publicly
+    volumes: !override
+      - mongo-prod-data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--username", "root", "--password", "${MONGO_INITDB_ROOT_PASSWORD}", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  fhir-server:
+    image: ghcr.io/fordpw/fhir-platform/fhir-server:${IMAGE_TAG:-latest}
+    container_name: fhir-server-prod
+    restart: always
+    ports: !override []   # not exposed directly — Caddy proxies through fhir-admin-ui/nginx
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://fhirapp:${MONGO_APP_PASSWORD}@mongodb:27017/fhirdb
+      APP_JWT_SECRET: ${APP_JWT_SECRET}
+      APP_CORS_ALLOWED_ORIGINS: https://${DOMAIN}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/fhir/metadata"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  fhir-admin-ui:
+    image: ghcr.io/fordpw/fhir-platform/fhir-admin-ui:${IMAGE_TAG:-latest}
+    container_name: fhir-admin-ui-prod
+    restart: always
+    ports: !override []   # Caddy proxies to this container on port 80
+    depends_on:
+      - fhir-server
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: fhir-caddy-prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - fhir-admin-ui
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  # Daily MongoDB backup — dumps to /backups on the host, retains 7 days
+  mongo-backup:
+    image: mongo:7
+    container_name: fhir-mongo-backup
+    restart: always
+    entrypoint: >
+      sh -c "
+        while true; do
+          sleep 86400;
+          DATE=$$(date +%Y%m%d_%H%M%S);
+          mongodump
+            --username root
+            --password $$MONGO_ROOT_PASSWORD
+            --authenticationDatabase admin
+            --db fhirdb
+            --archive=/backups/fhirdb_$${DATE}.gz
+            --gzip;
+          find /backups -name 'fhirdb_*.gz' -mtime +7 -delete;
+          echo \"Backup completed: fhirdb_$${DATE}.gz\";
+        done
+      "
+    environment:
+      MONGO_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - /var/backups/fhir-mongodb:/backups
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+volumes:
+  mongo-prod-data:
+  caddy-data:
+  caddy-config:

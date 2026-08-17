@@ -1,0 +1,31 @@
+# Caddyfile — production TLS termination and reverse proxy.
+# Caddy automatically obtains and renews Let's Encrypt certificates.
+# Replace {$DOMAIN} with your domain name, or set the DOMAIN env variable.
+
+{$DOMAIN} {
+    # Proxy all traffic to the nginx container serving the React UI.
+    # nginx in turn proxies /fhir/ and /api/ to fhir-server:8080.
+    reverse_proxy fhir-admin-ui:80
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "DENY"
+        Referrer-Policy           "strict-origin-when-cross-origin"
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}
+
+# Redirect bare HTTP to HTTPS (Caddy does this automatically,
+# but explicit config makes the intent clear).
+http://{$DOMAIN} {
+    redir https://{$DOMAIN}{uri} permanent
+}
