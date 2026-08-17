@@ -7,8 +7,7 @@
  *   - 401 from the login endpoint itself is passed through untouched (bad credentials).
  *   - 403 never redirects; the authenticated session is preserved.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import axios from 'axios'
+import { describe, it, expect, beforeEach } from 'vitest'
 
 // ── jsdom location stub ──────────────────────────────────────────────────────
 // jsdom exposes window.location as read-only; replace it with a writable stub.

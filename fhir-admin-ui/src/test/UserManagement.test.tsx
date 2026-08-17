@@ -74,9 +74,7 @@ describe('UserManagement', () => {
 
   it('opens delete confirmation when the trash icon is clicked', async () => {
     renderPage()
-    const trashButtons = screen.getAllByRole('button', { name: '' })
-    // The delete buttons render no accessible text; use data-testid alternative:
-    // click the second icon button in the first row (Edit, Delete)
+    // The delete buttons render no accessible text; click the second icon button in the first row (Edit, Delete)
     const row = screen.getByText('admin').closest('tr')!
     const deleteBtn = row.querySelectorAll('button')[1]
     await userEvent.click(deleteBtn)

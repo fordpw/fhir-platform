@@ -13,7 +13,6 @@ import { MemoryRouter } from 'react-router-dom'
 import { Login } from '../pages/Login'
 import { AUTH_MESSAGE_KEY } from '../api/client'
 import { AuthContext } from '../context/AuthContext'
-import type { ReactNode } from 'react'
 
 // Minimal AuthContext value — the Login page only calls `login`.
 function makeAuthContext(loginFn: () => Promise<void>) {
