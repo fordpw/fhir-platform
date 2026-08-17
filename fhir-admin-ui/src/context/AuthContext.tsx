@@ -18,7 +18,7 @@ interface AuthContextValue {
   isAdmin: boolean
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null)
+export const AuthContext = createContext<AuthContextValue | null>(null)
 
 function loadStoredAuth(): AuthState | null {
   try {
