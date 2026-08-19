@@ -14,15 +14,11 @@ export async function login(username: string, password: string): Promise<string>
   return res.data.token
 }
 
-export async function loadBundle(bundle: unknown): Promise<unknown> {
-  const res = await client.post('/fhir', bundle, {
+/** POST a new FHIR resource — server assigns the ID. Returns the created resource. */
+export async function createResource(type: string, body: object): Promise<{ id: string } & object> {
+  const res = await client.post<{ id: string } & object>(`/fhir/${type}`, body, {
     headers: { 'Content-Type': 'application/fhir+json' },
   })
-  return res.data
-}
-
-export async function getResource(type: string, id: string): Promise<unknown> {
-  const res = await client.get(`/fhir/${type}/${id}`)
   return res.data
 }
 
