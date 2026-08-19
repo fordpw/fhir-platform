@@ -115,7 +115,6 @@ export default function App() {
   const [responses,   setResponses]   = useState<Record<number, object>>({})
   const [errors,      setErrors]      = useState<Record<number, string>>({})
   const [activeStep,  setActiveStep]  = useState(1)
-  const [resetting,   setResetting]   = useState(false)
   const [started,     setStarted]     = useState(false)
   const [createdIds,  setCreatedIds]  = useState<CreatedIds>({})
 
@@ -126,18 +125,20 @@ export default function App() {
     finally { setLoginLoading(false) }
   }
 
-  const handleReset = async () => {
-    setResetting(true)
-    for (const [type, id] of [
-      ['ExplanationOfBenefit', createdIds.eob], ['Claim', createdIds.claim],
-      ['Condition', createdIds.condition], ['Encounter', createdIds.encounter],
-      ['Patient', createdIds.patient],
-    ] as [string, string | undefined][]) {
-      if (id) { try { await deleteResource(type, id) } catch { /* ok */ } }
-    }
+  const handleReset = () => {
+    // Fire deletes in the background — don't block the UI waiting for them.
+    // Resources are identified by the IDs captured at click time.
+    const ids = createdIds
+    void Promise.allSettled([
+      ids.eob       && deleteResource('ExplanationOfBenefit', ids.eob),
+      ids.claim     && deleteResource('Claim',                ids.claim),
+      ids.condition && deleteResource('Condition',            ids.condition),
+      ids.encounter && deleteResource('Encounter',            ids.encounter),
+      ids.patient   && deleteResource('Patient',              ids.patient),
+    ].filter(Boolean))
+    // Reset UI state immediately
     setStatuses({}); setResponses({}); setErrors({})
     setActiveStep(1); setCreatedIds({}); setStarted(true)
-    setResetting(false)
   }
 
   const runStep = async (stepId: number) => {
@@ -213,10 +214,10 @@ export default function App() {
               <p className="text-xs text-slate-500">Claims Processing Demo</p>
             </div>
           </div>
-          <button onClick={handleReset} disabled={resetting}
-            className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-            <RotateCcw className={`h-4 w-4 ${resetting ? 'animate-spin' : ''}`} />
-            {resetting ? 'Resetting…' : started ? 'Restart Demo' : 'Start Demo'}
+          <button onClick={handleReset}
+            className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <RotateCcw className="h-4 w-4" />
+            {started ? 'Restart Demo' : 'Start Demo'}
           </button>
         </div>
       </header>
