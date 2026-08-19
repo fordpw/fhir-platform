@@ -42,5 +42,10 @@ services:
     ports: !override
       - "5174:80"
 
+  fhir-demo-client:
+    container_name: fhir-demo-client-staging
+    ports: !override
+      - "5176:80"
+
 volumes:
   mongo-staging-data:
