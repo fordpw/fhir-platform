@@ -89,6 +89,30 @@ jobs:
         working-directory: fhir-admin-ui
         run: npm test
 
+  # ── Demo client: type-check & build ───────────────────────────────────────
+  demo:
+    name: Demo Client (Node / Vite)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: fhir-demo-client/package-lock.json
+
+      - name: Install dependencies
+        working-directory: fhir-demo-client
+        run: npm ci
+
+      - name: Type-check & build
+        working-directory: fhir-demo-client
+        run: npm run build
+
   # ── Docker: validate image builds ────────────────────────────────────────────
   docker:
     name: Docker Compose Build

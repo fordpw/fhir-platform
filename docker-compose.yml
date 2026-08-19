@@ -47,6 +47,16 @@ services:
     depends_on:
       - fhir-server
 
+  fhir-demo-client:
+    build:
+      context: ./fhir-demo-client
+      dockerfile: Dockerfile
+    container_name: fhir-demo-client
+    ports:
+      - "5175:80"
+    depends_on:
+      - fhir-server
+
 volumes:
   mongo-data:
   synthea-output:
