@@ -23,6 +23,8 @@ services:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: fhirdb
+      # Required by mongo-init.js to create the fhirapp application user
+      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD}
     ports: !override
       - "127.0.0.1:27017:27017"   # bind to localhost only — not exposed publicly
     volumes: !override
