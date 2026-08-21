@@ -49,15 +49,15 @@ until $COMPOSE ps fhir-server | grep -q "healthy"; do
     echo "  Waiting... (${ELAPSED}s)"
 done
 
-# Post-deploy endpoint check
+# Post-deploy endpoint check (-k accepts self-signed cert; bare IPs have no ACME cert)
 echo "[4/4] Verifying endpoints..."
-FHIR_VERSION=$(curl -sf "https://${DOMAIN}/fhir/metadata" | python3 -c "import sys,json; print(json.load(sys.stdin)['fhirVersion'])" 2>/dev/null || echo "")
+FHIR_VERSION=$(curl -sfkL "https://${DOMAIN}/fhir/metadata" | python3 -c "import sys,json; print(json.load(sys.stdin)['fhirVersion'])" 2>/dev/null || echo "")
 if [ "$FHIR_VERSION" != "4.0.1" ]; then
     echo "ERROR: /fhir/metadata did not return expected fhirVersion. Got: '${FHIR_VERSION}'"
     exit 1
 fi
 
-HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" "https://${DOMAIN}" 2>/dev/null || echo "000")
+HTTP_CODE=$(curl -skLo /dev/null -w "%{http_code}" "https://${DOMAIN}" 2>/dev/null || echo "000")
 if [ "$HTTP_CODE" != "200" ]; then
     echo "ERROR: Frontend returned HTTP ${HTTP_CODE} (expected 200)"
     exit 1
