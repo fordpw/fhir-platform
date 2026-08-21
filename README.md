@@ -131,13 +131,13 @@ Each supports CRUD operations and resource-specific search parameters.
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
-| `ci.yml` | Every PR + push to `master` | Backend (`mvn verify`), Frontend (`npm run build`), Docker build |
-| `deploy-staging.yml` | Every push to `master` | Deploy staging stack via self-hosted runner, verify endpoints |
+| `ci.yml` | Every PR + push to `master` | Backend (`mvn verify`), Frontend tests (26), Frontend build, Demo build, Docker Compose build |
+| `deploy-staging.yml` | Every push to `master` | Self-hosted runner deploys staging stack, verifies endpoints |
+| `deploy-production.yml` | `workflow_dispatch` or `v*` tag | Build + push to GHCR, SSH deploy to VPS, post-deploy health check |
 
-## Staging Environment
+## Environments
 
-Runs on separate ports alongside the dev stack. **There is no production
-environment in this repository.**
+### Staging
 
 | | Dev | Staging |
 |---|---|---|
@@ -160,6 +160,66 @@ environment valid in the other.
 $env:STAGING_APP_JWT_SECRET = '<unique-value-for-staging>'
 pwsh scripts/deploy-staging.ps1
 ```
+
+### Production Environment
+
+Deployed to a DigitalOcean VPS (Ubuntu 24.04 LTS, 2 vCPU / 4 GB, NYC1) using Docker Compose with images from GHCR.
+
+| Service | Address |
+|---|---|
+| Admin UI | http://161.35.52.153 |
+| Claims Demo | http://161.35.52.153:5175 |
+| FHIR API | http://161.35.52.153/fhir/ |
+
+**Infrastructure:** Caddy reverse proxy → nginx (fhir-admin-ui) → Spring Boot (fhir-server). MongoDB runs with `--auth`, bound to `127.0.0.1` only; the application user has `readWrite` on `fhirdb` only. A daily `mongodump` backup runs in a sidecar container with 7-day retention.
+
+**Deploying:**
+```bash
+# Push a version tag to trigger build-push-deploy automatically
+git tag v1.1.0 && git push origin v1.1.0
+
+# Or trigger manually from the Actions tab
+gh workflow run deploy-production.yml --repo fordpw/fhir-platform --ref master
+```
+
+**Required GitHub `production` environment secrets/variables:**
+
+| Name | Type | Notes |
+|---|---|---|
+| `PRODUCTION_HOST` | variable | VPS IP or hostname |
+| `DOMAIN` | variable | Domain name or IP |
+| `PRODUCTION_SSH_KEY` | secret | ed25519 private key for `deploy` user |
+| `APP_JWT_SECRET` | secret | Unique hex value (no base64 `/` chars in MongoDB URI) |
+| `MONGO_INITDB_ROOT_PASSWORD` | secret | MongoDB root password |
+| `MONGO_APP_PASSWORD` | secret | MongoDB `fhirapp` user password |
+
+**Enabling HTTPS:** Currently serving HTTP (bare IP — no ACME cert). When a domain is configured, change `http://{$DOMAIN}` to `{$DOMAIN}` in `Caddyfile` and update `DOMAIN` in the GitHub environment. Caddy obtains a Let's Encrypt cert automatically.
+
+**VPS first-time bootstrap:**
+```bash
+# Run on a fresh Ubuntu 24.04 droplet as root
+apt-get update && apt-get install -y curl git
+curl -fsSL https://get.docker.com | sh
+useradd -m -s /bin/bash deploy && usermod -aG docker deploy
+mkdir -p /home/deploy/.ssh
+# Paste the PRODUCTION_SSH_KEY public key into /home/deploy/.ssh/authorized_keys
+git clone https://github.com/fordpw/fhir-platform.git /opt/fhir-platform
+chown -R deploy:deploy /opt/fhir-platform /home/deploy/.ssh
+mkdir -p /var/backups/fhir-mongodb && chown deploy:deploy /var/backups/fhir-mongodb
+```
+
+## Claims Processing Demo
+
+A standalone guided walkthrough app (`fhir-demo-client/`) for go-to-market demos. Available on port 5175 (dev), 5176 (staging), and 5175 in production.
+
+**Workflow (5 steps, each makes a live FHIR API call):**
+1. Register Patient — `POST /fhir/Patient`
+2. Record Encounter — `POST /fhir/Encounter` (linked to patient)
+3. Document Condition — `POST /fhir/Condition` (Type 2 Diabetes, CPT 44054006)
+4. Submit Claim — `POST /fhir/Claim` ($150.00 office visit, CPT 99213)
+5. View EOB — `POST /fhir/ExplanationOfBenefit` ($120.00 paid by insurer)
+
+Each step receives a server-assigned UUID and passes it as a reference to the next step. **Restart Demo** deletes all resources from the session and starts fresh. Login: **admin / admin**.
 
 ## Key Features
 
@@ -250,7 +310,7 @@ The backend suite covers JWT classification, the 401/403 split, admin user
 creation and role validation, and search paging. It uses `@WebMvcTest` slices
 and mocked repositories, so **no MongoDB is required** and it runs anywhere.
 
-The frontend has no test tooling yet; `npm run build` type-checks via `tsc -b`.
+The frontend has 26 unit tests (Vitest + React Testing Library) covering the 401/403 interceptor, session expiry notice, Dashboard resource cards, Pagination, API Console auth toggle, and User Management. Run with `npm test` from `fhir-admin-ui/`.
 
 ## Synthea Setup
 
