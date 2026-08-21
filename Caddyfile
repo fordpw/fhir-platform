@@ -2,23 +2,18 @@
 # Caddy automatically obtains and renews Let's Encrypt certificates.
 # Replace {$DOMAIN} with your domain name, or set the DOMAIN env variable.
 
-{$DOMAIN} {
-    # Proxy all traffic to the nginx container serving the React UI.
-    # nginx in turn proxies /fhir/ and /api/ to fhir-server:8080.
+# When DOMAIN is a bare IP address, serve HTTP only (no TLS possible).
+# When DOMAIN is a real hostname, remove the http:// prefix so Caddy
+# automatically obtains a Let's Encrypt certificate.
+http://{$DOMAIN} {
     reverse_proxy fhir-admin-ui:80
 
-    # Use Caddy's internal CA when deploying to a bare IP (no ACME cert available).
-    # Remove this line and point DOMAIN to a real hostname for public TLS.
-    tls internal
-
-    # Security headers
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options        "DENY"
         Referrer-Policy        "strict-origin-when-cross-origin"
     }
 
-    # Log to stdout so Docker captures it (avoids missing /var/log/caddy/ directory)
     log {
         output stdout
     }
