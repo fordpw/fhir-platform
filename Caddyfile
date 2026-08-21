@@ -7,25 +7,19 @@
     # nginx in turn proxies /fhir/ and /api/ to fhir-server:8080.
     reverse_proxy fhir-admin-ui:80
 
+    # Use Caddy's internal CA when deploying to a bare IP (no ACME cert available).
+    # Remove this line and point DOMAIN to a real hostname for public TLS.
+    tls internal
+
     # Security headers
     header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Content-Type-Options    "nosniff"
-        X-Frame-Options           "DENY"
-        Referrer-Policy           "strict-origin-when-cross-origin"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options        "DENY"
+        Referrer-Policy        "strict-origin-when-cross-origin"
     }
 
-    # Logging
+    # Log to stdout so Docker captures it (avoids missing /var/log/caddy/ directory)
     log {
-        output file /var/log/caddy/access.log {
-            roll_size 10mb
-            roll_keep 5
-        }
+        output stdout
     }
-}
-
-# Redirect bare HTTP to HTTPS (Caddy does this automatically,
-# but explicit config makes the intent clear).
-http://{$DOMAIN} {
-    redir https://{$DOMAIN}{uri} permanent
 }

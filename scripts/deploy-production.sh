@@ -38,7 +38,7 @@ $COMPOSE up -d --remove-orphans
 echo "[3/4] Waiting for backend to be healthy..."
 TIMEOUT=120
 ELAPSED=0
-until $COMPOSE ps fhir-server | grep -q "healthy"; do
+until $COMPOSE ps fhir-server | grep -q "(healthy)"; do
     sleep 5
     ELAPSED=$((ELAPSED + 5))
     if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
