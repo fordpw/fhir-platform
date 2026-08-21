@@ -75,6 +75,19 @@ services:
         limits:
           memory: 256m
 
+  fhir-demo-client:
+    image: ghcr.io/fordpw/fhir-platform/fhir-demo-client:${IMAGE_TAG:-latest}
+    container_name: fhir-demo-client-prod
+    restart: always
+    ports: !override
+      - "5175:80"   # demo client accessible at http://<host>:5175
+    depends_on:
+      - fhir-server
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
   caddy:
     image: caddy:2-alpine
     container_name: fhir-caddy-prod
