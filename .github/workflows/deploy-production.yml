@@ -80,6 +80,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build and push fhir-demo-client
+        uses: docker/build-push-action@v5
+        with:
+          context: ./fhir-demo-client
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/fhir-demo-client:${{ steps.meta.outputs.tag }}
+            ${{ env.IMAGE_PREFIX }}/fhir-demo-client:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   # ── Deploy to production host (requires approval) ─────────────────────────────
   deploy:
     name: Deploy to production

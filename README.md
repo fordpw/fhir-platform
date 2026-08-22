@@ -165,13 +165,16 @@ pwsh scripts/deploy-staging.ps1
 
 Deployed to a DigitalOcean VPS (Ubuntu 24.04 LTS, 2 vCPU / 4 GB, NYC1) using Docker Compose with images from GHCR.
 
-| Service | Address |
+| Service | URL |
 |---|---|
 | Admin UI | http://161.35.52.153 |
 | Claims Demo | http://161.35.52.153:5175 |
 | FHIR API | http://161.35.52.153/fhir/ |
+| CapabilityStatement | http://161.35.52.153/fhir/metadata |
 
-**Infrastructure:** Caddy reverse proxy → nginx (fhir-admin-ui) → Spring Boot (fhir-server). MongoDB runs with `--auth`, bound to `127.0.0.1` only; the application user has `readWrite` on `fhirdb` only. A daily `mongodump` backup runs in a sidecar container with 7-day retention.
+**Infrastructure:** Caddy reverse proxy → nginx (fhir-admin-ui) → Spring Boot (fhir-server). MongoDB runs with `--auth`, bound to `127.0.0.1` only; the application user has `readWrite` on `fhirdb` only. A daily `mongodump` backup runs in a sidecar container with 7-day retention. The claims demo (`fhir-demo-client`) is served directly on port 5175.
+
+**Firewall:** Inbound TCP ports open: 22 (SSH), 80 (HTTP), 443 (HTTPS), 5175 (demo client).
 
 **Deploying:**
 ```bash

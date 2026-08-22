@@ -194,8 +194,79 @@ reachable beyond localhost. Changing it invalidates existing staging sessions.
 ### Staging data is separate
 
 Staging uses its own database (`fhirdb_staging` on :27018) and its own volumes,
-so resource counts and Synthea jobs differ from dev. There is **no production
-environment** defined in this repository.
+so resource counts and Synthea jobs differ from dev.
+
+---
+
+## 4b. Option D — Production Environment (VPS)
+
+The platform is deployed to a live production VPS via GitHub Actions. Images are built and pushed to GHCR on every `v*` tag or `workflow_dispatch` trigger, then pulled and started on the server.
+
+### Live endpoints
+
+| Service | URL | Login |
+|---|---|---|
+| Admin UI | http://161.35.52.153 | admin / admin |
+| Claims Demo | http://161.35.52.153:5175 | admin / admin |
+| FHIR API | http://161.35.52.153/fhir/ | — |
+| CapabilityStatement | http://161.35.52.153/fhir/metadata | — |
+
+### Triggering a production deploy
+
+```bash
+# Via version tag (recommended — also creates a GitHub Release)
+git tag v1.2.0 && git push origin v1.2.0
+
+# Via manual trigger (no tag / release created)
+gh workflow run deploy-production.yml --repo fordpw/fhir-platform --ref master
+```
+
+The workflow (`deploy-production.yml`):
+1. Builds and pushes `fhir-server`, `fhir-admin-ui`, and `fhir-demo-client` images to GHCR
+2. SSHs into the VPS as the `deploy` user
+3. Runs `scripts/deploy-production.sh`, which pulls images, restarts the stack, waits for the backend health check, and verifies the FHIR endpoint
+
+### Infrastructure
+
+- **VPS:** DigitalOcean, Ubuntu 24.04 LTS, 2 vCPU / 4 GB RAM, NYC1
+- **Firewall:** TCP inbound — 22 (SSH), 80 (HTTP), 443 (HTTPS), 5175 (demo client)
+- **Reverse proxy:** Caddy on ports 80/443 → `fhir-admin-ui:80`
+- **Demo client:** nginx on port 5175 → `fhir-server:8080` (direct, not through Caddy)
+- **MongoDB:** `--auth` mode, bound to `127.0.0.1:27017` only; `fhirapp` user has `readWrite` on `fhirdb`
+- **Backups:** daily `mongodump` to `/var/backups/fhir-mongodb`, 7-day retention
+- **Images:** pulled from `ghcr.io/fordpw/fhir-platform/`
+
+### Required GitHub `production` environment secrets and variables
+
+| Name | Type | Notes |
+|---|---|---|
+| `PRODUCTION_HOST` | variable | VPS IP (`161.35.52.153`) |
+| `DOMAIN` | variable | IP or hostname for Caddy |
+| `PRODUCTION_SSH_KEY` | secret | ed25519 private key for `deploy` user |
+| `APP_JWT_SECRET` | secret | Hex value — no base64 `/` chars (breaks MongoDB URI) |
+| `MONGO_INITDB_ROOT_PASSWORD` | secret | MongoDB root password |
+| `MONGO_APP_PASSWORD` | secret | MongoDB `fhirapp` user password |
+
+### Enabling HTTPS
+
+Currently serving HTTP (bare IP — no ACME cert possible). When a domain is available:
+1. Point the domain A record to `161.35.52.153`
+2. Update `DOMAIN` in the GitHub `production` environment
+3. In `Caddyfile`, change `http://{$DOMAIN}` to `{$DOMAIN}` — Caddy obtains a Let's Encrypt certificate automatically
+
+### VPS first-time bootstrap
+
+```bash
+# Run as root on a fresh Ubuntu 24.04 droplet
+apt-get update && apt-get install -y curl git
+curl -fsSL https://get.docker.com | sh
+useradd -m -s /bin/bash deploy && usermod -aG docker deploy
+mkdir -p /home/deploy/.ssh
+# Paste the public key from PRODUCTION_SSH_KEY into /home/deploy/.ssh/authorized_keys
+git clone https://github.com/fordpw/fhir-platform.git /opt/fhir-platform
+chown -R deploy:deploy /opt/fhir-platform /home/deploy/.ssh
+mkdir -p /var/backups/fhir-mongodb && chown deploy:deploy /var/backups/fhir-mongodb
+```
 
 ---
 
