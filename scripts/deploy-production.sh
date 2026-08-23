@@ -39,6 +39,8 @@ $COMPOSE up -d --remove-orphans
 # a volume file change (Caddyfile) is not detected.
 $COMPOSE restart caddy
 echo "  Caddy restarted (new Caddyfile loaded)"
+echo "  Waiting 20s for Caddy to complete ACME certificate issuance..."
+sleep 20
 
 # Wait for the backend health check
 echo "[3/4] Waiting for backend to be healthy..."
