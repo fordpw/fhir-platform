@@ -139,7 +139,20 @@ export function ApiConsole() {
   }
 
   const copy = (text: string) => {
-    void navigator.clipboard?.writeText(text)
+    // navigator.clipboard is only available in secure contexts (HTTPS / localhost).
+    // Fall back to the legacy execCommand approach so copy works over plain HTTP.
+    if (navigator.clipboard) {
+      void navigator.clipboard.writeText(text)
+    } else {
+      const el = document.createElement('textarea')
+      el.value = text
+      el.style.position = 'fixed'
+      el.style.opacity = '0'
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+    }
   }
 
   return (
