@@ -48,7 +48,7 @@ services:
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://fhirapp:${MONGO_APP_PASSWORD}@mongodb:27017/fhirdb
       APP_JWT_SECRET: ${APP_JWT_SECRET}
-      APP_CORS_ALLOWED_ORIGINS: https://${DOMAIN}
+      APP_CORS_ALLOWED_ORIGINS: https://${DOMAIN},http://${DOMAIN}
     depends_on:
       mongodb:
         condition: service_healthy

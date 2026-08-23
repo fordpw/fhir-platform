@@ -2,10 +2,9 @@
 # Caddy automatically obtains and renews Let's Encrypt certificates.
 # Replace {$DOMAIN} with your domain name, or set the DOMAIN env variable.
 
-# When DOMAIN is a bare IP address, serve HTTP only (no TLS possible).
-# When DOMAIN is a real hostname, remove the http:// prefix so Caddy
-# automatically obtains a Let's Encrypt certificate.
-http://{$DOMAIN} {
+# Caddy automatically obtains and renews a Let's Encrypt certificate
+# for the configured domain. For a bare IP, prefix with http:// instead.
+{$DOMAIN} {
     reverse_proxy fhir-admin-ui:80
 
     header {
