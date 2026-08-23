@@ -315,6 +315,38 @@ and mocked repositories, so **no MongoDB is required** and it runs anywhere.
 
 The frontend has 26 unit tests (Vitest + React Testing Library) covering the 401/403 interceptor, session expiry notice, Dashboard resource cards, Pagination, API Console auth toggle, and User Management. Run with `npm test` from `fhir-admin-ui/`.
 
+### Production Smoke Test
+
+The backend and frontend suites above run against code in isolation (mocked
+repositories, MSW-mocked API calls) — neither makes a real network call, so
+neither can verify an actual deployment. `scripts/smoke-test-production.ps1`
+fills that gap: it exercises the **live, deployed** system over HTTPS.
+
+```powershell
+# Full run against production (includes a real Synthea generation job)
+pwsh scripts/smoke-test-production.ps1
+
+# Skip the Synthea check (faster; avoids creating persistent data)
+pwsh scripts/smoke-test-production.ps1 -SkipSynthea
+
+# Target a different deployment (e.g. staging)
+pwsh scripts/smoke-test-production.ps1 -BaseUrl https://staging.example.com
+```
+
+Checks performed, in order: `/fhir/metadata` returns `fhirVersion 4.0.1`, the
+Admin UI responds `200`, unauthenticated admin calls are rejected with `401`,
+login issues a JWT, authenticated `/api/admin/stats` succeeds, a full FHIR
+`Patient` CRUD round-trip (create/read/update/delete), and — unless skipped —
+a small Synthea generation job runs to completion. Each check prints
+PASS/FAIL and the script exits non-zero if any check fails, so it can be
+wired into a post-deploy CI step.
+
+The FHIR CRUD checks shell out to `curl.exe` rather than
+`Invoke-RestMethod`/`Invoke-WebRequest`: this server's chunked FHIR responses
+(with `Location`/`Content-Location`/`Etag` headers) make PowerShell 7's
+.NET-backed HTTP client throw `InvalidOperationException` after a valid
+response is already received, so `curl.exe` is used for reliability there.
+
 ## Synthea Setup
 
 **Docker Compose:** nothing to do. The `fhir-server` image downloads the Synthea
