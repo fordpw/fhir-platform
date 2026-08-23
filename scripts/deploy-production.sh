@@ -39,8 +39,6 @@ $COMPOSE up -d --remove-orphans
 # a volume file change (Caddyfile) is not detected.
 $COMPOSE restart caddy
 echo "  Caddy restarted (new Caddyfile loaded)"
-echo "  Waiting 20s for Caddy to complete ACME certificate issuance..."
-sleep 20
 
 # Wait for the backend health check
 echo "[3/4] Waiting for backend to be healthy..."
@@ -57,9 +55,18 @@ until $COMPOSE ps fhir-server | grep -q "(healthy)"; do
     echo "  Waiting... (${ELAPSED}s)"
 done
 
-# Post-deploy endpoint check (-k accepts self-signed cert; bare IPs have no ACME cert)
-echo "[4/4] Verifying endpoints..."
-FHIR_VERSION=$(curl -sfL "https://${DOMAIN}/fhir/metadata" | python3 -c "import sys,json; print(json.load(sys.stdin)['fhirVersion'])" 2>/dev/null || echo "")
+# Post-deploy endpoint check
+# Caddy may need up to 90s to complete the ACME HTTP-01 challenge on first deploy.
+echo "[4/4] Verifying endpoints (waiting for HTTPS / ACME if needed)..."
+HTTPS_TIMEOUT=90
+HTTPS_ELAPSED=0
+FHIR_VERSION=""
+until [ -n "$FHIR_VERSION" ] || [ "$HTTPS_ELAPSED" -ge "$HTTPS_TIMEOUT" ]; do
+    sleep 5
+    HTTPS_ELAPSED=$((HTTPS_ELAPSED + 5))
+    FHIR_VERSION=$(curl -sfL "https://${DOMAIN}/fhir/metadata" | python3 -c "import sys,json; print(json.load(sys.stdin)['fhirVersion'])" 2>/dev/null || echo "")
+    [ -z "$FHIR_VERSION" ] && echo "  Waiting for HTTPS... (${HTTPS_ELAPSED}s)"
+done
 if [ "$FHIR_VERSION" != "4.0.1" ]; then
     echo "ERROR: /fhir/metadata did not return expected fhirVersion. Got: '${FHIR_VERSION}'"
     exit 1
