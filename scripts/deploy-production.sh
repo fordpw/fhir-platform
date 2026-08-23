@@ -34,6 +34,12 @@ $COMPOSE pull
 echo "[2/4] Restarting stack..."
 $COMPOSE up -d --remove-orphans
 
+# Always restart Caddy so it picks up any Caddyfile changes.
+# docker compose up -d only recreates containers when image/env changes;
+# a volume file change (Caddyfile) is not detected.
+$COMPOSE restart caddy
+echo "  Caddy restarted (new Caddyfile loaded)"
+
 # Wait for the backend health check
 echo "[3/4] Waiting for backend to be healthy..."
 TIMEOUT=120
