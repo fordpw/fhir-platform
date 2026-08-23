@@ -118,7 +118,16 @@ jobs:
             export APP_JWT_SECRET="${{ secrets.APP_JWT_SECRET }}"
             export MONGO_INITDB_ROOT_PASSWORD="${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}"
             export MONGO_APP_PASSWORD="${{ secrets.MONGO_APP_PASSWORD }}"
-            bash /opt/fhir-platform/scripts/deploy-production.sh
+            # Pull latest code (compose files, Caddyfile, scripts) BEFORE invoking
+            # the deploy script as its own process. Doing this here (rather than
+            # inside deploy-production.sh) avoids a self-modifying-script bug:
+            # bash buffers a script's contents at start, so a self-pull partway
+            # through the script's own execution would run stale, already-buffered
+            # content for everything after that point.
+            cd /opt/fhir-platform
+            git fetch origin master
+            git reset --hard origin/master
+            bash scripts/deploy-production.sh
 
       - name: Post-deploy summary
         run: |

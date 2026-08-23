@@ -22,9 +22,12 @@ echo ""
 
 cd "$REPO_DIR"
 
-# Pull latest code (compose files, Caddyfile, scripts) from origin
-git fetch origin master
-git reset --hard origin/master
+# NOTE: the git pull for this repo is done by the CALLER (the GitHub Actions
+# SSH step) *before* invoking this script, not here. This script overwrites
+# itself via that pull, and bash buffers script contents at start, so a
+# self-pull performed partway through this file's own execution would run
+# using stale, already-buffered content for everything after that point.
+# See commit history for the incident this avoided.
 
 # Pull new images
 echo "[1/4] Pulling images..."
