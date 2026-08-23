@@ -5,12 +5,16 @@
 # Caddy automatically obtains and renews a Let's Encrypt certificate
 # for the configured domain. For a bare IP, prefix with http:// instead.
 {$DOMAIN} {
-    reverse_proxy fhir-admin-ui:80
-
-    header {
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options        "DENY"
-        Referrer-Policy        "strict-origin-when-cross-origin"
+    # header_down (not a standalone header{} block) is required here: reverse_proxy
+    # copies upstream response headers using Add semantics, which runs after the
+    # request-path header{} directive's Set, so a standalone header{} block ends
+    # up duplicated alongside identical headers the backend already sets (e.g.
+    # Spring Security's X-Content-Type-Options/X-Frame-Options). header_down runs
+    # against the already-received upstream response and correctly overwrites.
+    reverse_proxy fhir-admin-ui:80 {
+        header_down X-Content-Type-Options "nosniff"
+        header_down X-Frame-Options        "DENY"
+        header_down Referrer-Policy        "strict-origin-when-cross-origin"
     }
 
     log {
