@@ -1,5 +1,88 @@
 # Changelog
 
+## 2026-08-23 — Production HTTPS outage: three compounding deploy-pipeline bugs
+
+Production (`fhir.applied-thoughts.com`) was unreachable on both HTTP and
+HTTPS (connections refused on 80/443). Root-caused and fixed across four
+releases; each fix uncovered the next issue once the deploy pipeline could
+actually be trusted to run the code it claimed to run.
+
+### 1. ACME cert wait was a fixed sleep (v1.1.2)
+
+`deploy-production.sh` slept a fixed 20s for Let's Encrypt's HTTP-01
+challenge, which can take 30-60s. Replaced with a retry loop polling
+`/fhir/metadata` over HTTPS for up to 90s.
+
+### 2. Self-modifying deploy script masked every fix above (v1.1.3)
+
+`deploy-production.sh` ran `git fetch && git reset --hard origin/master` on
+**itself** partway through its own execution. Bash buffers a script's
+contents at process start, so the self-pull silently ran the rest of that
+same invocation using stale, pre-fix logic — meaning v1.1.2's fix (and
+likely prior "fix(prod)" commits) never actually took effect on their own
+tagged deploy. Confirmed by v1.1.2's own deploy log still printing text the
+commit had removed.
+
+**Fixed:** moved the `git fetch`/`reset` into the GitHub Actions SSH step,
+run *before* invoking `bash scripts/deploy-production.sh` as a fresh
+process, guaranteeing the script executed is the one on disk.
+
+### 3. Caddy was crash-looping since HTTPS was enabled (v1.1.4)
+
+With the pipeline now trustworthy, the real fault surfaced: `docker compose
+logs caddy` showed a continuous crash loop —
+`unrecognized global option: reverse_proxy`. The `caddy` service in
+`docker-compose.prod.yml` had no `environment:` block, so `DOMAIN` never
+reached the Caddy process; `{$DOMAIN}` in the Caddyfile resolved empty,
+turning the site block into Caddy's *global options* block, where
+`reverse_proxy` isn't valid. Caddy refused to start, so nothing ever
+listened on 80/443. **Fixed:** added `environment: DOMAIN: ${DOMAIN}` to the
+`caddy` service.
+
+### 4. Duplicate security response headers (v1.1.5)
+
+Found while building the production smoke-test script: `/fhir/*` responses
+carried `X-Content-Type-Options` and `X-Frame-Options` **twice** — Caddy's
+standalone `header {}` block sets them on the request path (before
+`reverse_proxy` runs), and `reverse_proxy` then *adds* (not replaces) the
+same headers already returned by the backend (Spring Security defaults).
+Valid per HTTP spec, but breaks strict clients (.NET's `HttpClient`, and by
+extension PowerShell 7's `Invoke-RestMethod`/`Invoke-WebRequest`) with
+`InvalidOperationException`. **Fixed:** moved the three headers into
+`reverse_proxy`'s `header_down` subdirective, which runs after the upstream
+response is received and correctly overwrites.
+
+### Added
+
+- **`scripts/smoke-test-production.ps1`** — end-to-end verification against
+  the live deployment (not mocks): FHIR metadata, Admin UI reachability,
+  401 enforcement, login, admin stats, full Patient CRUD, and Synthea
+  generation. Documented in the README under Testing.
+
+### Verification
+
+All 10 smoke-test checks pass against `https://fhir.applied-thoughts.com`.
+Manually re-triggered `deploy-production.yml` via `workflow_dispatch` after
+all fixes landed; both jobs succeeded and production remained healthy
+afterward.
+
+### Known remaining risks
+
+1. **Manual SSH access to the production host is unreliable from at least
+   one operator's network.** Diagnosed extensively: the `deploy` user's
+   `authorized_keys`, sshd config, and both RSA and ED25519 test keys were
+   all verified correct; the connection is reset immediately after the
+   server accepts the public key and the client sends its signature —
+   reproduced identically across two independent SSH client implementations
+   (Windows OpenSSH and WSL's native Linux OpenSSH), ruling out a client or
+   server misconfiguration. Points to something in that network path
+   (firewall/VPN/ISP-level interference). **Does not affect the CI/CD
+   pipeline**, which authenticates successfully via its own dedicated key
+   (`fhir-platform-deploy@github-actions`) on every run.
+2. **`Location`/`Content-Location` headers on FHIR responses use `http://`
+   even when served over HTTPS**, likely a missing `X-Forwarded-Proto`
+   passthrough from nginx to `fhir-server`. Cosmetic; not yet fixed.
+
 ## 2026-08-10 — Admin UI session, authorization, pagination and environment configuration
 
 Reported as *"error loading stats on multiple pages"* in the admin UI.
