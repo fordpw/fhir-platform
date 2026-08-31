@@ -24,5 +24,10 @@ app:
     # Base output directory. Each job exports into its own subdirectory, so
     # Synthea writes FHIR bundles to <output-directory>/<jobId>/fhir.
     output-directory: ${SYNTHEA_OUTPUT_DIR:./output}
+    # Max heap for the Synthea subprocess JVM (-Xmx). Left unset, Synthea derives
+    # a default from the container's cgroup memory limit shared with this process,
+    # which has been observed to be too small under memory pressure and fail with
+    # "OutOfMemoryError: Java heap space" while loading demographics data.
+    heap-size: ${SYNTHEA_HEAP_SIZE:1024m}
   cors:
     allowed-origins: http://localhost:5173

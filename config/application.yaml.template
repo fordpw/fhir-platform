@@ -20,6 +20,7 @@ app:
   synthea:
     jar-path: {{SYNTHEA_JAR_PATH}}
     output-directory: {{SYNTHEA_OUTPUT_DIR}}
+    heap-size: {{SYNTHEA_HEAP_SIZE}}
 
   cors:
     allowed-origins: {{CORS_ORIGIN}}

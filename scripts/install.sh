@@ -34,6 +34,7 @@ SERVER_URL=""
 MONGO_URI="mongodb://localhost:27017/fhirdb"
 JWT_SECRET=""
 CORS_ORIGIN=""
+SYNTHEA_HEAP_SIZE=""
 INSTALL_MONGO=false
 UNATTENDED=false
 
@@ -48,6 +49,7 @@ while [[ $# -gt 0 ]]; do
         --mongo-uri)     MONGO_URI="$2"; shift 2 ;;
         --jwt-secret)    JWT_SECRET="$2"; shift 2 ;;
         --cors-origin)   CORS_ORIGIN="$2"; shift 2 ;;
+        --synthea-heap-size) SYNTHEA_HEAP_SIZE="$2"; shift 2 ;;
         --install-mongo) INSTALL_MONGO=true; shift ;;
         --unattended)    UNATTENDED=true; shift ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
@@ -218,6 +220,7 @@ if [[ "$MODE" =~ ^(all|server)$ ]]; then
     SYNTHEA_JAR="$INSTALL_DIR/synthea-with-dependencies.jar"
     SYNTHEA_OUT="$INSTALL_DIR/synthea-output"
     mkdir -p "$SYNTHEA_OUT"
+    [[ -z "$SYNTHEA_HEAP_SIZE" ]] && SYNTHEA_HEAP_SIZE=$(prompt "Synthea subprocess max heap (-Xmx)" "1024m")
     [[ -z "$CORS_ORIGIN" ]] && CORS_ORIGIN=$(prompt "CORS allowed origin" "http://localhost:$CLIENT_PORT")
 
     # Write application.yaml from template
@@ -227,6 +230,7 @@ if [[ "$MODE" =~ ^(all|server)$ ]]; then
         JWT_SECRET        "$JWT_SECRET" \
         SYNTHEA_JAR_PATH  "$SYNTHEA_JAR" \
         SYNTHEA_OUTPUT_DIR "$SYNTHEA_OUT" \
+        SYNTHEA_HEAP_SIZE "$SYNTHEA_HEAP_SIZE" \
         CORS_ORIGIN       "$CORS_ORIGIN" \
         > "$INSTALL_DIR/config/application.yaml"
     chmod 600 "$INSTALL_DIR/config/application.yaml"

@@ -49,6 +49,17 @@ public class SyntheaService {
     @Value("${app.synthea.output-directory}")
     private String outputDirectory;
 
+    // Synthea's subprocess JVM has no heap size of its own by default: it derives
+    // one from whatever memory the container's cgroup reports, which is shared
+    // with (and already partly used by) this Spring Boot process. Under memory
+    // pressure from a prior run that default has been observed to be too small,
+    // failing Demographics.load with "OutOfMemoryError: Java heap space" even
+    // though the requested population size was small. Sizing it explicitly makes
+    // the subprocess's memory needs predictable and independent of the parent
+    // JVM's current footprint.
+    @Value("${app.synthea.heap-size}")
+    private String syntheaHeapSize;
+
     public SyntheaService(MongoTemplate mongoTemplate,
                           BundleImportService bundleImportService,
                           FhirContext fhirContext,
@@ -103,6 +114,7 @@ public class SyntheaService {
 
             ProcessBuilder pb = new ProcessBuilder();
             pb.command().add("java");
+            pb.command().add("-Xmx" + syntheaHeapSize);
             pb.command().add("-jar");
             pb.command().add(jarPath.toString());
             pb.command().add("-p");
