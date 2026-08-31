@@ -22,6 +22,7 @@ param(
     [string]$MongoUri    = '',         # MongoDB connection string
     [string]$JwtSecret   = '',         # APP_JWT_SECRET value
     [string]$CorsOrigin  = '',         # CORS allowed origin for the backend
+    [string]$SyntheaHeapSize = '',     # Synthea subprocess max heap, e.g. 1024m
     [switch]$InstallMongo,             # attempt to install MongoDB via winget
     [switch]$Unattended                # skip confirmation prompts
 )
@@ -173,6 +174,7 @@ if ($Mode -in 'all','server') {
     $syntheaJar = "$InstallDir\synthea-with-dependencies.jar"
     $syntheaOut = "$InstallDir\synthea-output"
     New-Item -ItemType Directory -Force -Path $syntheaOut | Out-Null
+    if (-not $SyntheaHeapSize) { $SyntheaHeapSize = Prompt-Value "Synthea subprocess max heap (-Xmx)" "1024m" }
     $corsOriginDefault = if ($Mode -eq 'all') { "http://localhost:$ClientPort" } else { "http://localhost:80" }
     if (-not $CorsOrigin) { $CorsOrigin = Prompt-Value "CORS allowed origin" $corsOriginDefault }
 
@@ -184,6 +186,7 @@ if ($Mode -in 'all','server') {
         JWT_SECRET        = $JwtSecret
         SYNTHEA_JAR_PATH  = $syntheaJar
         SYNTHEA_OUTPUT_DIR= $syntheaOut
+        SYNTHEA_HEAP_SIZE = $SyntheaHeapSize
         CORS_ORIGIN       = $CorsOrigin
     }
     $config | Set-Content "$InstallDir\config\application.yaml" -Encoding utf8

@@ -61,7 +61,13 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
+          # 1g was too tight: this container runs both the Spring Boot/HAPI FHIR
+          # process and, per Synthea job, a child JVM with its own -Xmx (see
+          # app.synthea.heap-size). Under load from a prior job the child JVM's
+          # default heap sizing (or even a fixed heap sized on top of an already
+          # tight cap) could exceed remaining cgroup memory and die with
+          # "OutOfMemoryError: Java heap space" during Synthea's demographics load.
+          memory: 2g
 
   fhir-admin-ui:
     image: ghcr.io/fordpw/fhir-platform/fhir-admin-ui:${IMAGE_TAG:-latest}
