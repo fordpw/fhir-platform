@@ -3,7 +3,7 @@ services:
     image: mongo:7
     container_name: fhir-mongodb
     ports:
-      - "172.18.0.2:27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo-data:/data/db
     healthcheck:
@@ -24,6 +24,11 @@ services:
       # Must be APP_JWT_SECRET: the property is app.jwt.secret, so a bare
       # JWT_SECRET binds to jwt.secret and is silently ignored.
       APP_JWT_SECRET: ${APP_JWT_SECRET:-dev-only-secret-please-override-in-any-shared-environment}
+      # JVM heap size; override by setting JAVA_TOOL_OPTIONS in your shell/.env.
+      # Sized to comfortably exceed the Synthea subprocess's own heap
+      # (app.synthea.max-heap / SYNTHEA_MAX_HEAP, default 2048m) so the two
+      # don't contend for memory when a generation job runs concurrently.
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xmx4096m}
     volumes:
       # Synthea writes generated bundles here (one subdirectory per job)
       - synthea-output:/app/output

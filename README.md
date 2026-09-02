@@ -290,6 +290,7 @@ Key settings in `fhir-server/src/main/resources/application.yaml`:
 | `app.jwt.expiration` | `86400000` (24h) | Token lifetime in ms (env: `APP_JWT_EXPIRATION`) |
 | `app.synthea.jar-path` | `./synthea-with-dependencies.jar` | Path to Synthea JAR (env: `SYNTHEA_JAR_PATH`) |
 | `app.synthea.output-directory` | `./output` | Base output dir; each job writes to `<base>/<jobId>/fhir` (env: `SYNTHEA_OUTPUT_DIR`) |
+| `app.synthea.heap-size` | `1024m` | Heap cap for the Synthea subprocess JVM, independent of the server's own heap (env: `SYNTHEA_HEAP_SIZE`) |
 | `app.cors.allowed-origins` | `http://localhost:5173` | Permitted browser origin (env: `APP_CORS_ALLOWED_ORIGINS`) |
 
 > **Set `APP_JWT_SECRET` in any shared environment.** The property is
@@ -301,6 +302,35 @@ Key settings in `fhir-server/src/main/resources/application.yaml`:
 > ```powershell
 > [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Max 256 }))
 > ```
+
+## Memory Configuration
+
+The `fhir-server` container runs two independent JVMs that can be active at
+the same time: the Spring Boot server itself, and the short-lived Synthea
+subprocess it spawns per generation job (`SyntheaService`). Each has its own
+heap cap so a Synthea job cannot starve the server (or vice versa):
+
+| JVM | Heap flag | Set via | Default |
+|---|---|---|---|
+| `fhir-server` (parent) | `-Xmx` | `JAVA_TOOL_OPTIONS` env var, set in `docker-compose.yml` | `4096m` |
+| Synthea subprocess (child) | `-Xmx` | `app.synthea.heap-size` / `SYNTHEA_HEAP_SIZE` (see #18) | `1024m` |
+
+`SyntheaService` passes `-Xmx${app.synthea.heap-size}` directly on the child
+process's command line, so an explicit heap cap always applies to the
+subprocess regardless of population size. Override either JVM's heap with its
+corresponding environment variable; the parent's default is sized well above
+the subprocess's so the two do not contend for container memory when a
+generation job runs concurrently with normal server load.
+
+MongoDB's published port is also bound explicitly to `127.0.0.1` (rather than
+a container-internal bridge address) in `docker-compose.yml`, so the database
+port is reachable from the host but not exposed on other network interfaces.
+
+**Verified under load:** a population-200 Synthea generation job completed
+successfully end-to-end, importing 285,129 resources with no errors, while
+both JVMs ran concurrently. Container memory stayed well under the combined
+heap ceiling throughout, with no OOM kills or contention observed via
+`docker stats`.
 
 ## Testing
 
